@@ -1,0 +1,16 @@
+# Log de iterações
+
+Momentos em que a IA gerou algo errado, raso ou incompleto e o que foi corrigido. Cada entrada registra o problema, como foi detectado, a correção e a fase em que aconteceu.
+
+Detectores possíveis:
+- **Humano**: revisão no checkpoint.
+- **Revisor**: subagente adversarial ([P-03](prompts.md#p-03-revisor-adversarial-template-reutilizado-em-todas-as-fases)).
+- **Diff**: comparação entre extrações independentes.
+- **Script**: `validar-entrega.mjs`.
+
+| IT | Fase | Detector | Problema | Correção |
+|---|---|---|---|---|
+| IT-01 | 0 | Mapa do código (P-01) | Premissas de quem só leu a transcrição estavam erradas sobre o código. O `AppError` usa o campo `errorCode`, não `code`. Todas as rotas ficam sob `/api/v1`, então `POST /admin/webhooks/...` da transcrição vira `/api/v1/admin/webhooks/...`. O `requireRole` só é usado em `users.routes.ts`. O redact do Pino não cobre `secret`. Não existe cliente HTTP no projeto. | Registrado no [inventário § 9](inventario.md#9-mapa-do-código-verificado) e no glossário. Os documentos passam a citar `/api/v1`, `errorCode`, `fetch` nativo e `node:crypto`. |
+| IT-02 | 0 | Humano | O plano inicial pedia que a própria IA geradora revisasse o inventário, o que tende a só confirmar o que ela já tinha escrito. Também não definia antes onde cada tema seria detalhado, o que abria espaço para duplicação entre PRD, RFC e FDD. | Foram adotados: extração cega com outro modelo ([P-02](prompts.md#p-02-extração-cega-da-transcrição)), matriz de fronteira e glossário no inventário, revisor adversarial com Sonnet e evidência versionada (script, checklist e commits por fase). |
+| IT-03 | 0 | Leitura dirigida | A transcrição tem pontos que uma geração direta trataria como fato. O `customer_id` "do JWT" foi corrigido um minuto depois. "5 tentativas" não fecha com os 5 intervalos somando cerca de 15h. O limite de 64KB não diz onde se aplica. `WEBHOOK_SECRET_REQUIRED` foi citado antes de se decidir que a secret é gerada pela plataforma. | Tabela de [ambiguidades e interpretações adotadas](inventario.md#8-ambiguidades-e-interpretações-adotadas) (AMB-01 a AMB-11). Os documentos têm de sinalizar quando usam uma interpretação. |
+| IT-04 | 0 | Diff (P-02 contra a sessão principal) | A extração cega, feita com outro modelo, achou **erros e omissões no inventário da sessão principal**. (1) O glossário dava `webhook.worker.ts` como decidido, mas [09:28] Bruno deixou duas opções. (2) O rate limiting estava em "fora de escopo", mas a decisão foi "observar e decidir depois". (3) Faltava o "estado ativo" do cadastro ([09:21] Bruno). (4) Faltavam 13 ambiguidades: assinatura durante a carência de 24h, critério de sucesso HTTP, `X-Timestamp` fora da assinatura, semântica do replay, linhas presas em `PROCESSING`, auditoria do replay, erros no worker, métrica de < 10s contra timeout de 10s, prazo "trimestre" contra "novembro", "idempotência" no resumo, entre outras. (5) O e-mail estava como adiamento firme, mas foi "**talvez** próxima fase". | Inventário corrigido: D-05, D-06, D-27, OOS-01/06/07, OQ-03/05, LIM-05 a 07, AMB-12 a 24, mais as seções 12 (dependências) e 13 (regras de redação). Antes do checkpoint, um script conferiu todas as 95 referências `[hh:mm] Nome` contra a transcrição. Ele achou uma inválida: `[09:50] Sofia` é uma marcação de saída, não uma fala. |
