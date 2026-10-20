@@ -182,8 +182,10 @@ else {
   record('Tracker', 'todas as localizações válidas', badRefs.length === 0, badRefs.slice(0, 10).join(' | ') + (badRefs.length > 10 ? ` (+${badRefs.length - 10})` : ''));
   record('Tracker', '≥ 70% das linhas com TRANSCRICAO válida', transc / rows.length >= 0.7, `${((100 * transc) / rows.length).toFixed(1)}%`);
   record('Tracker', '≥ 5 linhas CODIGO com caminho real', code >= 5, `${code} linhas`);
-  const idRe = /\b(?:(?:PRD|RFC|FDD)-[A-Z]+-\d{2}|ADR-\d{3})\b/g;
-  const docIds = new Set(docs.filter((d) => d !== 'docs/TRACKER.md').flatMap((d) => (read(d) ?? '').match(idRe) ?? []));
+  const idRe = /\b(?:(?:PRD|RFC|FDD)-[A-Z]+-\d{2}|ADR-\d{3}(?:-[A-Z]{3}-\d{2})?)\b/g;
+  // Só os documentos de design contam; o README descreve o processo e não tem itens rastreáveis.
+  const designDocs = docs.filter((d) => d !== 'docs/TRACKER.md' && d !== 'README.md');
+  const docIds = new Set(designDocs.flatMap((d) => (read(d) ?? '').match(idRe) ?? []));
   const trackerIds = new Set(rows.map((r) => r[0].replace(/`/g, '')));
   const missing = [...docIds].filter((i) => !trackerIds.has(i));
   record('Tracker', '≥ 80% dos itens dos documentos rastreados', docIds.size > 0 && 1 - missing.length / docIds.size >= 0.8, `${docIds.size - missing.length}/${docIds.size}${missing.length ? `; sem linha: ${missing.slice(0, 15).join(', ')}` : ''}`);

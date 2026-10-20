@@ -111,3 +111,47 @@ proposta/interpretação e ancorados numa fonte.
 Saída: tabela (# | Trecho | Problema | Evidência | Correção sugerida), ordenada por
 gravidade, e um veredito de uma linha. Não edite arquivos.
 ```
+
+---
+
+## P-04: Geração dos ADRs
+
+- **Fase:** 1
+- **Ferramenta:** Claude Code, sessão principal (Opus 5.5)
+- **Objetivo:** produzir de 5 a 8 ADRs que registrem as decisões fechadas na reunião, cada uma no seu arquivo, sem repetir o detalhamento que pertence ao FDD.
+
+```text
+Gere os ADRs do Sistema de Webhooks a partir EXCLUSIVAMENTE de
+docs/processo/inventario.md (decisões D-xx, alternativas ALT-xx, ambiguidades AMB-xx,
+mapa do código, glossário e matriz de fronteira). Não releia a transcrição para
+"completar" nada: se algo não está no inventário, não entra.
+
+Um arquivo por decisão, em docs/adrs/ADR-NNN-titulo-em-kebab-case.md:
+  001 outbox no MySQL (D-01, D-02, D-20; ALT-01, ALT-02, ALT-11)
+  002 worker separado em polling (D-03..D-05; ALT-03, ALT-04; OOS-06)
+  003 retry com backoff e DLQ (D-07..D-10; ALT-05..ALT-07; AMB-02, AMB-17, AMB-19)
+  004 HMAC-SHA256 com secret por endpoint (D-11..D-13; ALT-08; AMB-07, AMB-14, AMB-15)
+  005 at-least-once com X-Event-Id (D-14; ALT-09; AMB-04, AMB-16, AMB-23)
+  006 reuso dos padrões do projeto (D-06, D-15..D-17, D-19; ALT-12, ALT-13, ALT-15)
+  007 payload snapshot na inserção (D-18; ALT-14)
+
+Formato MADR em PT-BR, com estas seções, nesta ordem:
+  Status | Contexto | Decisão | Alternativas Consideradas | Consequências
+  (### Positivas, ### Negativas, ### Trade-off) | Referências
+Regras:
+- Cada alternativa recebe um rótulo ADR-NNN-ALT-NN, diz quem propôs ou cogitou e
+  dá o motivo do descarte com timestamp. Uma alternativa "plausível" que não foi
+  discutida é permitida só quando marcada como tal.
+- Consequências negativas precisam ser reais e específicas (custos, riscos,
+  limitações), não genéricas. O trade-off fica numa frase explícita
+  "aceitamos X em troca de Y".
+- Toda interpretação de ponto ambíguo é marcada como "interpretação adotada (AMB-xx)".
+- O ADR-006 cita caminhos REAIS do mapa do código. Arquivos novos vêm marcados
+  como "(novo)".
+- Altura: o ADR explica POR QUE. Contratos HTTP, DDL, pseudo-código e matriz de erros
+  ficam no FDD; aqui no máximo nomes (tabela, header, função).
+- Opiniões ("Stripe faz assim", "99%") são atribuídas a quem falou.
+- Status "Aceito". A data é a da reunião ("quinta-feira"), sem dia inventado.
+Depois, reescreva docs/adrs/README.md como índice e acrescente as linhas dos ADRs
+em docs/TRACKER.md.
+```
