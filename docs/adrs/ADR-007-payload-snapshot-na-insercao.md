@@ -57,7 +57,7 @@ Proposta por Bruno como alternativa em [09:51].
 
 - **Dados do pedido em repouso por tempo indeterminado.** Os dados do pedido ficam duplicados na outbox e na DLQ, e não há arquivamento nesta feature ([09:08] Diego). `ADR-007-CON-01`
   - Esse ponto foi decidido depois da saída de Sofia.
-  - O escopo que ela declarou para a revisão de segurança foi "HMAC e geração de secret" ([09:46] Sofia).
+  - O escopo declarado por Sofia para a revisão de segurança foi "HMAC e geração de secret" ([09:46] Sofia).
   - **Recomenda-se** incluir o snapshot nessa revisão. A reunião não pautou isso.
 - **Mais espaço em disco.** Cada linha da outbox guarda o JSON completo, e não só uma referência.
 - **Formato congelado por evento.** Uma mudança de formato do payload só vale para eventos novos. Os já gravados saem no formato antigo.

@@ -155,3 +155,51 @@ Regras:
 Depois, reescreva docs/adrs/README.md como índice e acrescente as linhas dos ADRs
 em docs/TRACKER.md.
 ```
+
+---
+
+## P-05: Geração do RFC
+
+- **Fase:** 2
+- **Ferramenta:** Claude Code, sessão principal (Opus 5.5)
+- **Objetivo:** consolidar a proposta técnica para revisão do time. É um documento curto, em nível de arquitetura, que **referencia** os ADRs em vez de repeti-los.
+
+```text
+Escreva docs/RFC.md: um RFC de 2 a 4 páginas (1.000 a 2.000 palavras, sem contar
+blocos de código) que a Larissa submeteria ao time para revisão, conforme o
+compromisso registrado em [09:50] Larissa.
+Fontes: SOMENTE docs/processo/inventario.md e os ADRs em docs/adrs/. Os ADRs
+estão aprovados: o RFC não decide nada diferente deles.
+
+Seções obrigatórias, nesta ordem:
+  Metadados (autor, status "Em revisão", data de redação, revisores = participantes
+    da reunião, com o papel de cada um na revisão)
+  Resumo (TL;DR)
+  Contexto e problema
+  Proposta técnica (visão geral: componentes e fluxo, em um diagrama Mermaid)
+  Alternativas consideradas
+  Questões em aberto
+  Impacto e riscos
+  Decisões relacionadas
+  Próximos passos
+
+Regras de altura (matriz de fronteira, inventário § 11):
+- NÃO incluir contratos HTTP, payloads, DDL, nomes de colunas, algoritmos,
+  matriz de erros nem variáveis de ambiente. Isso é FDD.
+- Cada componente da proposta tem 2 a 4 linhas e um link para o ADR que o justifica.
+  Não repetir contexto nem consequências do ADR.
+- Problema de negócio e métricas: 1 parágrafo, com link para o PRD.
+
+Regras de conteúdo:
+- IDs visíveis: RFC-PROP-NN (componentes), RFC-ALT-NN (alternativas),
+  RFC-OQ-NN (questões em aberto), RFC-RISK-NN (riscos), RFC-IMP-NN (impactos).
+- Alternativas: no mínimo 2, todas REALMENTE discutidas e descartadas na reunião,
+  em tabela com proponente, trade-off do descarte e timestamp.
+- Questões em aberto: no mínimo 2, só pontos LEVANTADOS na reunião e não
+  decididos ou adiados. Para cada uma: estado atual, o que precisa ser decidido
+  e quem decide. Pontos derivados pelo autor (ex.: assinar o X-Timestamp) só
+  entram como subitem da pauta de segurança, marcados como derivados.
+- Riscos: em nível de arquitetura, com mitigação proposta e referência.
+- Interpretações (AMB-xx) aparecem como tal.
+- Sem datas absolutas inventadas para o prazo (AMB-22).
+```

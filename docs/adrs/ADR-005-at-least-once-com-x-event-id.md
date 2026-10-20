@@ -39,7 +39,7 @@ Na reunião, Bruno perguntou como o cliente reconheceria um mesmo evento recebid
 
 **Motivo do descarte (reunião):** exigiria "coordenação dos dois lados" e "fica muito mais complexo" ([09:25] Diego).
 
-Diego também afirmou que at-least-once com `event_id` "resolve 99% dos casos" e que "Stripe faz assim, GitHub faz assim". Essas afirmações são dele e não foram verificadas neste documento ([09:25] Diego).
+Diego também afirmou que at-least-once com `event_id` "resolve 99% dos casos" e que "Stripe faz assim, GitHub faz assim". Essas afirmações são de Diego e não foram verificadas neste documento ([09:25] Diego).
 
 ### ADR-005-ALT-02: At-most-once (enviar uma vez, sem retentar)
 

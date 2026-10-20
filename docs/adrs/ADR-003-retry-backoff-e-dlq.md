@@ -40,7 +40,7 @@ Os eventos que esgotam as tentativas precisam de um destino que permita investig
 1. **Retentativas com backoff exponencial**, em intervalos de **1 min, 5 min, 30 min, 2 h e 12 h** ([09:17] Diego).
    - Somados, os intervalos dão 14h36min, que Diego descreveu como "quase 15 horas entre primeira falha e última tentativa" ([09:17] Diego).
    - *Interpretação adotada (AMB-02):* "5 tentativas" significa **5 retentativas depois do envio inicial**, até 6 envios no total. `ADR-003-DEC-01`
-   - É a única leitura que fecha com os 5 intervalos e com a janela de ~15h. Também bate com o argumento de Diego contra 3 tentativas: "três vezes em 30 minutos" ([09:16] Diego) corresponde aos três primeiros intervalos, 1m + 5m + 30m, cerca de 36 min arredondados por ele.
+   - É a única leitura que fecha com os 5 intervalos e com a janela de ~15h. Também bate com o argumento de Diego contra 3 tentativas: "três vezes em 30 minutos" ([09:16] Diego) corresponde aos três primeiros intervalos, 1m + 5m + 30m, cerca de 36 min, arredondados na fala.
 2. **Dead Letter Queue em tabela separada.** Quando a última retentativa falha, o evento é tratado como falha permanente e **movido** para a tabela **`webhook_dead_letter`**, com o payload, o motivo da falha e o timestamp ([09:15] Diego, [09:18] Diego). `ADR-003-DEC-02`
    - *Interpretação adotada (AMB-13):* "mover" quer dizer que o evento deixa a outbox e passa a existir só na DLQ, na mesma operação. O status "falhou" citado em [09:08] Diego é tratado como transitório: a última tentativa falhou e o evento aguarda a próxima.
 3. **Reprocessamento manual** via `POST /admin/webhooks/dead-letter/:id/replay`, que "recoloca na outbox como pendente" ([09:18] Diego, [09:35] Diego). `ADR-003-DEC-03`

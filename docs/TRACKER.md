@@ -126,3 +126,34 @@ Este tracker liga cada item registrado nos documentos do pacote à sua origem: u
 | ADR-007-CON-01 | `docs/adrs/ADR-007-payload-snapshot-na-insercao.md` | Risco | Dados do pedido em repouso na outbox/DLQ, decidido sem Segurança; recomenda-se incluir na revisão | TRANSCRICAO | [09:46] Sofia; [09:52] Bruno |
 | ADR-007-COD-01 | `docs/adrs/ADR-007-payload-snapshot-na-insercao.md` | Padrão Existente | `Order` tem `orderNumber`, `customerId`, `totalCents`; `OrderStatusHistory` com cascata para `Order` | CODIGO | `prisma/schema.prisma` |
 | ADR-007-COD-02 | `docs/adrs/ADR-007-payload-snapshot-na-insercao.md` | Restrição | Após a criação, o pedido só muda de status ou é removido (`delete` em `PENDING`/`CANCELLED`) | CODIGO | `src/modules/orders/order.routes.ts` |
+| RFC-CTX-01 | `docs/RFC.md` | Restrição | Nenhum mecanismo de notificação, eventos ou filas; módulos registrados: auth, users, customers, products, orders | CODIGO | `src/routes/index.ts` |
+| RFC-CTX-02 | `docs/RFC.md` | Requisito Não Funcional | Clientes B2B fazem polling em `GET /orders`; "tempo real" é abaixo de 10s | TRANSCRICAO | [09:00] Marcos; [09:02] Marcos |
+| RFC-PROP-01 | `docs/RFC.md` | Decisão | `publishWebhookEvent(tx, …)` grava um evento por webhook inscrito, com payload snapshot; se falhar, o status é desfeito | TRANSCRICAO | [09:06] Diego; [09:34] Bruno; [09:41] Bruno; [09:52] Larissa |
+| RFC-PROP-02 | `docs/RFC.md` | Decisão | Worker em processo separado, polling a cada 2s, instância única; ordem por pedido só no primeiro envio | TRANSCRICAO | [09:09] Diego; [09:11] Larissa; [09:12] Diego |
+| RFC-PROP-03 | `docs/RFC.md` | Decisão | Backoff exponencial por ~15h, depois movido para DLQ; replay manual ADMIN, auditado | TRANSCRICAO | [09:17] Larissa; [09:18] Diego; [09:36] Sofia |
+| RFC-PROP-04 | `docs/RFC.md` | Decisão | HMAC-SHA256 do corpo em `X-Signature`; secret por endpoint, rotacionável com 24h de carência | TRANSCRICAO | [09:22] Sofia; [09:44] Diego |
+| RFC-PROP-05 | `docs/RFC.md` | Decisão | At-least-once; o cliente deduplica pelo `X-Event-Id` | TRANSCRICAO | [09:25] Diego; [09:26] Larissa |
+| RFC-PROP-06 | `docs/RFC.md` | Requisito Funcional | Operações de CRUD por customer, filtro de status, histórico de entregas, rotação de secret, replay administrativo | TRANSCRICAO | [09:21] Sofia; [09:31] Marcos; [09:33] Bruno; [09:34] Marcos; [09:36] Larissa |
+| RFC-PROP-07 | `docs/RFC.md` | Decisão | Módulo `src/modules/webhooks` (novo) no padrão do projeto; erros com prefixo `WEBHOOK_`; Pino; `requireRole`; PrismaClient próprio no worker | TRANSCRICAO | [09:27] Bruno; [09:29] Larissa; [09:30] Larissa; [09:30] Bruno |
+| RFC-ALT-01 | `docs/RFC.md` | Alternativa Descartada | Disparo síncrono no `changeStatus`: acopla a mudança de status ao cliente | TRANSCRICAO | [09:03] Larissa; [09:04] Bruno; [09:06] Diego |
+| RFC-ALT-02 | `docs/RFC.md` | Alternativa Descartada | Redis Streams: "subir mais infra", overengineering para um time pequeno | TRANSCRICAO | [09:07] Larissa; [09:07] Diego |
+| RFC-ALT-03 | `docs/RFC.md` | Alternativa Descartada | Trigger no banco: MySQL não notifica processo externo; polling de 2s já atende | TRANSCRICAO | [09:09] Bruno; [09:09] Diego |
+| RFC-ALT-04 | `docs/RFC.md` | Alternativa Descartada | Retry indefinido (posição de terceiros citada) ou 3 tentativas | TRANSCRICAO | [09:15] Diego; [09:16] Bruno; [09:16] Diego |
+| RFC-ALT-05 | `docs/RFC.md` | Alternativa Descartada | Exactly-once: exige coordenação dos dois lados | TRANSCRICAO | [09:25] Diego |
+| RFC-ALT-06 | `docs/RFC.md` | Alternativa Descartada | Secret global: "se vaza uma, vaza tudo" | TRANSCRICAO | [09:21] Sofia |
+| RFC-OQ-01 | `docs/RFC.md` | Questão em Aberto | Rate limiting: observar e implementar "se virar problema" | TRANSCRICAO | [09:38] Diego; [09:39] Diego; [09:39] Larissa |
+| RFC-OQ-02 | `docs/RFC.md` | Questão em Aberto | Escala do worker: particionar por `order_id` ou lock pessimista | TRANSCRICAO | [09:13] Bruno; [09:13] Diego |
+| RFC-OQ-03 | `docs/RFC.md` | Questão em Aberto | Endurecer as permissões do CRUD; `customerId` no body ou no path | TRANSCRICAO | [09:32] Larissa; [09:37] Sofia |
+| RFC-OQ-04 | `docs/RFC.md` | Questão em Aberto | Itens derivados para a revisão de segurança (HMAC e geração de secret) | TRANSCRICAO | [09:46] Sofia |
+| RFC-OQ-05 | `docs/RFC.md` | Questão em Aberto | E-mail fora desta fase; próxima fase condicionada à medição de impacto | TRANSCRICAO | [09:37] Marcos; [09:37] Larissa; [09:38] Marcos |
+| RFC-OQ-06 | `docs/RFC.md` | Questão em Aberto | Arquivamento das linhas entregues da outbox (~30 dias), fora desta feature | TRANSCRICAO | [09:08] Diego |
+| RFC-IMP-01 | `docs/RFC.md` | Restrição | Nova chamada em `changeStatus`, novas tabelas por migration; `PATCH /orders/:id/status` falha se a outbox falhar | CODIGO | `src/modules/orders/order.service.ts` |
+| RFC-IMP-02 | `docs/RFC.md` | Restrição | Novo processo iniciado pelo novo script `worker` | CODIGO | `package.json` |
+| RFC-IMP-03 | `docs/RFC.md` | Dependência | Clientes expõem https, validam a assinatura e deduplicam; documentação no portal | TRANSCRICAO | [09:26] Marcos; [09:40] Marcos |
+| RFC-IMP-04 | `docs/RFC.md` | Restrição | 3 sprints com revisão de segurança; Atlas quer até o fim de novembro | TRANSCRICAO | [09:45] Marcos; [09:46] Larissa; [09:47] Larissa |
+| RFC-RISK-01 | `docs/RFC.md` | Risco | Transação de status mais pesada | TRANSCRICAO | [09:04] Bruno; [09:08] Diego; [09:43] Diego |
+| RFC-RISK-02 | `docs/RFC.md` | Risco | Cliente lento atrasa a fila de todos; os 10s valem só até o primeiro envio | TRANSCRICAO | [09:02] Marcos; [09:42] Diego |
+| RFC-RISK-03 | `docs/RFC.md` | Risco | Worker único parado acumula eventos; segunda instância quebra a ordenação | TRANSCRICAO | [09:12] Diego; [09:13] Diego |
+| RFC-RISK-04 | `docs/RFC.md` | Limitação | Ordem garantida só por pedido, com um worker e no primeiro envio | TRANSCRICAO | [09:13] Larissa; [09:17] Diego |
+| RFC-RISK-05 | `docs/RFC.md` | Risco | Outbox cresce sem arquivamento | TRANSCRICAO | [09:07] Bruno; [09:08] Diego |
+| RFC-RISK-06 | `docs/RFC.md` | Risco | Vazamento de secret | TRANSCRICAO | [09:21] Sofia; [09:22] Diego |
