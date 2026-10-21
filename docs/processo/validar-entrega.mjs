@@ -43,7 +43,7 @@ const checkSections = (area, md, required) => {
 };
 
 // Arquivos novos propostos pela feature (não existem no repositório por definição).
-const PROPOSED = [/^src\/worker\.ts$/, /^src\/modules\/webhooks\//, /^prisma\/migrations\/\d{14}_webhooks?/];
+const PROPOSED = [/^src\/worker\.ts$/, /^src\/modules\/webhooks\//, /^prisma\/migrations\/\d{14}_webhooks?/, /^tests\/webhooks\.test\.ts$/];
 const CODE_PATH_RE = /\b(?:src|prisma|tests)\/[\w./-]*\w\.(?:ts|prisma|sql|toml)\b/g;
 const codePaths = (md) => [...new Set(md.match(CODE_PATH_RE) ?? [])];
 const classifyPaths = (paths) => {

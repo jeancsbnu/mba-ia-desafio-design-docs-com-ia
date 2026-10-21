@@ -203,3 +203,61 @@ Regras de conteúdo:
 - Interpretações (AMB-xx) aparecem como tal.
 - Sem datas absolutas inventadas para o prazo (AMB-22).
 ```
+
+---
+
+## P-06: Geração do FDD
+
+- **Fase:** 3
+- **Ferramenta:** Claude Code, sessão principal (Opus 5.5), depois de ler os arquivos de integração no código (`app.ts`, `routes/index.ts`, `server.ts`, `env.ts`, middlewares, erros, logger, `schema.prisma`, `tests/setup.ts`)
+- **Objetivo:** documento de implementação, acionável o bastante para alguém começar a programar. É o único documento do pacote que desce a contratos, modelo de dados e algoritmos.
+
+```text
+Escreva docs/FDD.md para o Sistema de Webhooks. Fontes: docs/processo/inventario.md,
+os ADRs aprovados, o RFC aprovado e o CÓDIGO REAL. Abra cada arquivo antes de citar
+um nome, uma linha ou um comportamento. Nada contradiz os ADRs.
+
+Seções obrigatórias:
+- Contexto e motivação técnica
+- Objetivos técnicos
+- Escopo e exclusões
+- Modelo de dados (proposto)
+- Fluxos detalhados: publicação na outbox, ciclo do worker, entrega, retry, DLQ,
+  replay e rotação, com diagramas Mermaid de sequência e de estado
+- Contratos públicos: endpoints sob /api/v1, cada um com request e response de
+  exemplo, headers, status codes e semântica; e o contrato de SAÍDA (payload e
+  headers do POST ao cliente)
+- Matriz de erros com códigos WEBHOOK_* (classe base, HTTP, quando ocorre). Inclua
+  os erros internos do worker
+- Estratégias de resiliência
+- Observabilidade: métricas, logs e tracing, SEM infraestrutura nova
+- Integração com o sistema existente: arquivo por arquivo, com o que muda e onde
+- Dependências e compatibilidade
+- Critérios de aceite técnicos, verificáveis por teste
+- Riscos e mitigação
+
+Regras:
+- IDs visíveis em todos os itens: FDD-MOD, FDD-FLUXO, FDD-CONTRATO, FDD-ERR,
+  FDD-RES, FDD-OBS, FDD-INT, FDD-DEP, FDD-AC, FDD-RISK.
+- Toda decisão da reunião cita [hh:mm] Nome. Todo detalhe que a reunião NÃO definiu
+  (nome de coluna, path de endpoint novo, variável de ambiente, formato do header
+  com duas assinaturas, tamanho de lote, mecanismo de instância única…) vem
+  marcado "(proposta)", com a justificativa ancorada numa decisão ou no código.
+- Use as interpretações AMB-xx do inventário e marque-as como tal.
+- Cumpra os compromissos que ADRs e RFC remetem ao FDD:
+  - concorrência sem quebrar a ordem por pedido
+  - proteção contra instância dupla
+  - monitoramento
+  - redact de secret
+  - listagem da DLQ
+  - outbox sem FK em cascata para orders
+  - WEBHOOK_NOT_FOUND estendendo AppError
+  - assinatura dupla
+  - linhas presas em PROCESSING
+  - webhook_deliveries
+- Respeite o código: envelope de erro { error: { code, message, details? } },
+  campo errorCode, prefixo /api/v1, validate() -> VALIDATION_ERROR,
+  paginated(), requireRole, padrão de testes com supertest e MySQL real.
+- Nada descartado vira requisito: sem e-mail, sem rate limiting, sem
+  multi-worker, sem order.created, sem itens no payload.
+```

@@ -144,7 +144,7 @@ Este tracker liga cada item registrado nos documentos do pacote à sua origem: u
 | RFC-OQ-01 | `docs/RFC.md` | Questão em Aberto | Rate limiting: observar e implementar "se virar problema" | TRANSCRICAO | [09:38] Diego; [09:39] Diego; [09:39] Larissa |
 | RFC-OQ-02 | `docs/RFC.md` | Questão em Aberto | Escala do worker: particionar por `order_id` ou lock pessimista | TRANSCRICAO | [09:13] Bruno; [09:13] Diego |
 | RFC-OQ-03 | `docs/RFC.md` | Questão em Aberto | Endurecer as permissões do CRUD; `customerId` no body ou no path | TRANSCRICAO | [09:32] Larissa; [09:37] Sofia |
-| RFC-OQ-04 | `docs/RFC.md` | Questão em Aberto | Itens derivados para a revisão de segurança (HMAC e geração de secret) | TRANSCRICAO | [09:46] Sofia |
+| RFC-OQ-04 | `docs/RFC.md` | Questão em Aberto | Itens derivados para a revisão de segurança (HMAC e geração de secret), incluindo restrição de destinos (SSRF) | TRANSCRICAO | [09:46] Sofia |
 | RFC-OQ-05 | `docs/RFC.md` | Questão em Aberto | E-mail fora desta fase; próxima fase condicionada à medição de impacto | TRANSCRICAO | [09:37] Marcos; [09:37] Larissa; [09:38] Marcos |
 | RFC-OQ-06 | `docs/RFC.md` | Questão em Aberto | Arquivamento das linhas entregues da outbox (~30 dias), fora desta feature | TRANSCRICAO | [09:08] Diego |
 | RFC-IMP-01 | `docs/RFC.md` | Restrição | Nova chamada em `changeStatus`, novas tabelas por migration; `PATCH /orders/:id/status` falha se a outbox falhar | CODIGO | `src/modules/orders/order.service.ts` |
@@ -157,3 +157,135 @@ Este tracker liga cada item registrado nos documentos do pacote à sua origem: u
 | RFC-RISK-04 | `docs/RFC.md` | Limitação | Ordem garantida só por pedido, com um worker e no primeiro envio | TRANSCRICAO | [09:13] Larissa; [09:17] Diego |
 | RFC-RISK-05 | `docs/RFC.md` | Risco | Outbox cresce sem arquivamento | TRANSCRICAO | [09:07] Bruno; [09:08] Diego |
 | RFC-RISK-06 | `docs/RFC.md` | Risco | Vazamento de secret | TRANSCRICAO | [09:21] Sofia; [09:22] Diego |
+| FDD-OBJ-01 | `docs/FDD.md` | Requisito Não Funcional | Atomicidade entre a mudança de status e o evento | TRANSCRICAO | [09:40] Bruno; [09:41] Diego |
+| FDD-OBJ-02 | `docs/FDD.md` | Requisito Não Funcional | Do commit ao início do 1º envio: p95 ≤ 10s; atraso do polling ≤ ~2s (AMB-21) | TRANSCRICAO | [09:02] Marcos; [09:10] Larissa |
+| FDD-OBJ-03 | `docs/FDD.md` | Requisito Não Funcional | Mudança de status não depende do cliente nem de dados enviados por ele | TRANSCRICAO | [09:04] Bruno |
+| FDD-OBJ-04 | `docs/FDD.md` | Requisito Não Funcional | 5 tentativas em ~15h (AMB-02), depois DLQ com replay manual | TRANSCRICAO | [09:17] Larissa; [09:18] Diego |
+| FDD-OBJ-05 | `docs/FDD.md` | Requisito Não Funcional | HMAC-SHA256 com secret por endpoint | TRANSCRICAO | [09:22] Sofia |
+| FDD-OBJ-06 | `docs/FDD.md` | Restrição | Nenhuma infraestrutura ou dependência nova | TRANSCRICAO | [09:07] Diego; [09:30] Larissa |
+| FDD-MOD-01 | `docs/FDD.md` | Decisão | `webhook_endpoints` com url, secret, customer, estado ativo e secret anterior para a carência | TRANSCRICAO | [09:21] Bruno; [09:21] Sofia |
+| FDD-MOD-02 | `docs/FDD.md` | Decisão | `webhook_outbox`: uma linha por webhook, payload snapshot em MediumText, índices de status e created_at, guarda `lockedBy` + `claimId` | TRANSCRICAO | [09:06] Diego; [09:08] Diego; [09:52] Larissa |
+| FDD-MOD-03 | `docs/FDD.md` | Decisão | `webhook_dead_letter` com payload, motivo e timestamp; registro do replay | TRANSCRICAO | [09:18] Diego; [09:36] Sofia |
+| FDD-MOD-04 | `docs/FDD.md` | Interpretação | `webhook_deliveries`: uma linha por tentativa, com `startedAt` e `dispatchDelayMs` (AMB-05) | TRANSCRICAO | [09:34] Marcos |
+| FDD-MOD-05 | `docs/FDD.md` | Restrição | `webhook_worker_lease`: linha única que garante instância única (proposta) | TRANSCRICAO | [09:12] Diego |
+| FDD-FLUXO-01 | `docs/FDD.md` | Decisão | `publishWebhookEvent(tx, …)` na transação; filtro na inserção; falha desfaz tudo; correlationId saneado | TRANSCRICAO | [09:40] Bruno; [09:41] Bruno; [09:34] Bruno |
+| FDD-FLUXO-02 | `docs/FDD.md` | Decisão | Lease com heartbeat e expiração local; poll não reentrante a cada 2s; seleção justa em duas etapas; ocupado no banco e em memória; claimId por lote; drenagem com teto | TRANSCRICAO | [09:08] Diego; [09:09] Diego; [09:12] Diego |
+| FDD-FLUXO-03 | `docs/FDD.md` | Decisão | Entrega: assinatura no envio, https.request com IP fixado e prazo único, 2xx = sucesso (AMB-17), limite de 64KB, saídas terminais registradas, guarda de lock | TRANSCRICAO | [09:22] Sofia; [09:24] Larissa; [09:42] Diego |
+| FDD-FLUXO-04 | `docs/FDD.md` | Decisão | Retentativas 1m/5m/30m/2h/12h; até 6 envios (AMB-02) | TRANSCRICAO | [09:17] Diego; [09:17] Larissa |
+| FDD-FLUXO-05 | `docs/FDD.md` | Interpretação | Evento movido para a DLQ: DELETE condicionado antes do INSERT (AMB-13) | TRANSCRICAO | [09:15] Diego; [09:18] Diego |
+| FDD-FLUXO-06 | `docs/FDD.md` | Requisito Funcional | Replay ADMIN atômico, mesmo eventId, cycle + 1; exige cadastro ativo; registro de quem fez | TRANSCRICAO | [09:18] Diego; [09:36] Sofia; [09:36] Larissa |
+| FDD-FLUXO-07 | `docs/FDD.md` | Requisito Funcional | Rotação com carência de 24h; 409 durante a carência; revokePrevious para emergência; UPDATE atômico | TRANSCRICAO | [09:21] Sofia |
+| FDD-FLUXO-08 | `docs/FDD.md` | Requisito Funcional | CRUD: secret gerada pela plataforma; customerId no body ou na query; qualquer role; url e active lidos no envio; pausa de até 24h | TRANSCRICAO | [09:31] Marcos; [09:32] Larissa; [09:37] Sofia |
+| FDD-CONTRATO-01 | `docs/FDD.md` | Requisito Funcional | `POST /api/v1/webhooks` com url https e statuses; devolve a secret | TRANSCRICAO | [09:31] Marcos; [09:33] Marcos; [09:23] Sofia |
+| FDD-CONTRATO-02 | `docs/FDD.md` | Requisito Funcional | `GET /api/v1/webhooks?customerId=` lista os webhooks do customer | TRANSCRICAO | [09:33] Bruno |
+| FDD-CONTRATO-03 | `docs/FDD.md` | Requisito Funcional | `PATCH /api/v1/webhooks/:id` edita url, statuses e active | TRANSCRICAO | [09:33] Bruno; [09:21] Bruno |
+| FDD-CONTRATO-04 | `docs/FDD.md` | Requisito Funcional | `DELETE /api/v1/webhooks/:id` remove o cadastro | TRANSCRICAO | [09:33] Bruno |
+| FDD-CONTRATO-05 | `docs/FDD.md` | Requisito Funcional | `POST /api/v1/webhooks/:id/rotate-secret` (path AMB-06) | TRANSCRICAO | [09:21] Sofia |
+| FDD-CONTRATO-06 | `docs/FDD.md` | Requisito Funcional | `GET /api/v1/webhooks/:id/deliveries`: últimos 100 envios | TRANSCRICAO | [09:34] Marcos |
+| FDD-CONTRATO-07 | `docs/FDD.md` | Requisito Funcional | `POST /api/v1/admin/webhooks/dead-letter/:id/replay`, somente ADMIN | TRANSCRICAO | [09:18] Diego; [09:35] Diego; [09:36] Larissa |
+| FDD-CONTRATO-08 | `docs/FDD.md` | Requisito Funcional | Listagem ADMIN da DLQ (proposta, ADR-003-CON-03) | TRANSCRICAO | [09:18] Diego |
+| FDD-CONTRATO-09 | `docs/FDD.md` | Requisito Funcional | Contrato de saída: payload enxuto, 5 headers, assinatura dupla na carência | TRANSCRICAO | [09:43] Diego; [09:44] Diego; [09:44] Sofia |
+| FDD-ERR-01 | `docs/FDD.md` | Restrição | `WEBHOOK_NOT_FOUND` (404, AppError direto) | TRANSCRICAO | [09:28] Bruno |
+| FDD-ERR-02 | `docs/FDD.md` | Restrição | `WEBHOOK_CUSTOMER_NOT_FOUND` (404) | TRANSCRICAO | [09:29] Larissa; [09:32] Larissa |
+| FDD-ERR-03 | `docs/FDD.md` | Restrição | `WEBHOOK_DEAD_LETTER_NOT_FOUND` (404) | TRANSCRICAO | [09:29] Larissa; [09:18] Diego |
+| FDD-ERR-04 | `docs/FDD.md` | Restrição | `WEBHOOK_DEAD_LETTER_ALREADY_REPLAYED` (409) | TRANSCRICAO | [09:29] Larissa; [09:18] Diego |
+| FDD-ERR-05 | `docs/FDD.md` | Restrição | `WEBHOOK_ENDPOINT_UNAVAILABLE` (422) no replay para cadastro removido, inexistente ou inativo | TRANSCRICAO | [09:29] Larissa; [09:21] Bruno |
+| FDD-ERR-06 | `docs/FDD.md` | Restrição | Replay recusado (422) só para item com payload acima de 64KB; destino bloqueado é reavaliado | TRANSCRICAO | [09:24] Larissa |
+| FDD-ERR-07 | `docs/FDD.md` | Restrição | `WEBHOOK_SECRET_ROTATION_IN_PROGRESS` (409) preserva a carência de 24h, salvo revokePrevious | TRANSCRICAO | [09:21] Sofia |
+| FDD-ERR-08 | `docs/FDD.md` | Interpretação | URL http → `VALIDATION_ERROR` do `validate()`; o exemplo `WEBHOOK_INVALID_URL` é absorvido (AMB-26) | CODIGO | `src/middlewares/validate.middleware.ts` |
+| FDD-ERR-09 | `docs/FDD.md` | Restrição | 401/403 dos middlewares existentes; rotas admin exigem ADMIN | TRANSCRICAO | [09:36] Larissa |
+| FDD-ERR-10 | `docs/FDD.md` | Restrição | `WEBHOOK_PUBLISH_FAILED` (500) desfaz a transação; a causa vai para o log | TRANSCRICAO | [09:40] Bruno |
+| FDD-ERR-11 | `docs/FDD.md` | Restrição | `WEBHOOK_DELIVERY_TIMEOUT`: tempo limite estourado, identificado por `signal.reason` TimeoutError | TRANSCRICAO | [09:42] Diego |
+| FDD-ERR-12 | `docs/FDD.md` | Interpretação | `WEBHOOK_DELIVERY_HTTP_ERROR`: resposta fora de 2xx (AMB-17) | TRANSCRICAO | [09:42] Diego |
+| FDD-ERR-13 | `docs/FDD.md` | Restrição | `WEBHOOK_DELIVERY_NETWORK_ERROR`: DNS, conexão ou TLS | TRANSCRICAO | [09:14] Larissa |
+| FDD-ERR-14 | `docs/FDD.md` | Restrição | `WEBHOOK_RETRIES_EXHAUSTED`: falha na 5ª retentativa (AMB-02) | TRANSCRICAO | [09:17] Larissa |
+| FDD-ERR-15 | `docs/FDD.md` | Restrição | `WEBHOOK_PAYLOAD_TOO_LARGE`: corpo acima de 65.536 bytes | TRANSCRICAO | [09:23] Sofia; [09:24] Larissa |
+| FDD-ERR-16 | `docs/FDD.md` | Restrição | `WEBHOOK_ENDPOINT_UNAVAILABLE`: cadastro removido ou inexistente, ou pausa acima de 24h | TRANSCRICAO | [09:21] Bruno |
+| FDD-ERR-17 | `docs/FDD.md` | Risco | `WEBHOOK_DESTINATION_BLOCKED`: destino privado ou de metadata (proposta, segurança) | TRANSCRICAO | [09:37] Sofia |
+| FDD-RES-01 | `docs/FDD.md` | Restrição | Envio fora da transação de status | TRANSCRICAO | [09:04] Bruno |
+| FDD-RES-02 | `docs/FDD.md` | Restrição | Timeout de 10s por envio | TRANSCRICAO | [09:42] Diego |
+| FDD-RES-03 | `docs/FDD.md` | Decisão | Backoff exponencial com teto | TRANSCRICAO | [09:17] Larissa |
+| FDD-RES-04 | `docs/FDD.md` | Decisão | DLQ e replay manual atômico | TRANSCRICAO | [09:18] Diego |
+| FDD-RES-05 | `docs/FDD.md` | Restrição | Sem canal alternativo nesta fase; fallback = DLQ e histórico | TRANSCRICAO | [09:37] Larissa |
+| FDD-RES-06 | `docs/FDD.md` | Trade-off | Seleção justa em duas etapas, rodízio, claimId, vagas limitadas, drenagem encerra na 1ª falha ou no tempo máximo (proposta) | TRANSCRICAO | [09:12] Diego; [09:04] Bruno |
+| FDD-RES-07 | `docs/FDD.md` | Trade-off | Linhas presas voltam à fila; no teto de reclaims vão para a DLQ; duplicata aceita (proposta) | TRANSCRICAO | [09:24] Diego |
+| FDD-RES-08 | `docs/FDD.md` | Restrição | Lease: heartbeat independente, expiração local, standby, holderId aleatório (proposta) | TRANSCRICAO | [09:12] Diego; [09:13] Larissa |
+| FDD-RES-09 | `docs/FDD.md` | Padrão Existente | Encerramento: flag stopping, espera só do envio em curso, devolução de linhas e liberação do lease, no padrão de `src/server.ts` | CODIGO | `src/server.ts` |
+| FDD-RES-10 | `docs/FDD.md` | Restrição | Acima de 64KB → DLQ sem tentativa; a coluna não impõe o limite (AMB-03) | TRANSCRICAO | [09:23] Sofia; [09:24] Larissa |
+| FDD-RES-11 | `docs/FDD.md` | Restrição | Worker parado não perde eventos | TRANSCRICAO | [09:06] Diego |
+| FDD-RES-12 | `docs/FDD.md` | Interpretação | Endpoint inativo pausa os pendentes por até 24h, depois DLQ (proposta) | TRANSCRICAO | [09:21] Bruno |
+| FDD-RES-13 | `docs/FDD.md` | Restrição | Leitura da resposta limitada a 2KB (proposta) | TRANSCRICAO | [09:34] Marcos |
+| FDD-OBS-01 | `docs/FDD.md` | Requisito Não Funcional | Logs estruturados no Pino; replay auditado com userId | TRANSCRICAO | [09:29] Bruno; [09:36] Sofia |
+| FDD-OBS-02 | `docs/FDD.md` | Restrição | Redact de secret na raiz e aninhada | TRANSCRICAO | [09:22] Diego |
+| FDD-OBS-03 | `docs/FDD.md` | Métrica | Métricas derivadas; p95 de `dispatchDelayMs` ≤ 10s (proposta) | TRANSCRICAO | [09:02] Marcos; [09:30] Larissa |
+| FDD-OBS-04 | `docs/FDD.md` | Padrão Existente | Tracing por correlação X-Request-Id → correlationId → eventId | CODIGO | `src/middlewares/request-logger.middleware.ts` |
+| FDD-INT-01 | `docs/FDD.md` | Padrão Existente | `changeStatus`: chamada entre linhas 159–167 e 169; `TxClient`; 5º argumento opcional proposto | CODIGO | `src/modules/orders/order.service.ts` |
+| FDD-INT-02 | `docs/FDD.md` | Padrão Existente | Controller repassa `req.id` como argumento opcional (proposta) | CODIGO | `src/modules/orders/order.controller.ts` |
+| FDD-INT-03 | `docs/FDD.md` | Padrão Existente | `buildControllers` instancia repository → service → controller de webhooks | CODIGO | `src/app.ts` |
+| FDD-INT-04 | `docs/FDD.md` | Padrão Existente | `Controllers` + `router.use('/webhooks')` e `'/admin/webhooks'` | CODIGO | `src/routes/index.ts` |
+| FDD-INT-05 | `docs/FDD.md` | Padrão Existente | `authenticate` em todas as rotas; `requireRole('ADMIN')` nas admin | CODIGO | `src/middlewares/auth.middleware.ts` |
+| FDD-INT-06 | `docs/FDD.md` | Padrão Existente | Schemas Zod com `validate()`; https no schema | CODIGO | `src/middlewares/validate.middleware.ts` |
+| FDD-INT-07 | `docs/FDD.md` | Padrão Existente | Classes 409/422 por herança; 404 e 500 estendem `AppError` direto | CODIGO | `src/shared/errors/http-errors.ts` |
+| FDD-INT-08 | `docs/FDD.md` | Padrão Existente | Error middleware sem alteração; o ramo `AppError` não loga; P2003 cai em 500 | CODIGO | `src/middlewares/error.middleware.ts` |
+| FDD-INT-09 | `docs/FDD.md` | Padrão Existente | `redactPaths` ganha secret na raiz e aninhada; logger filho no worker | CODIGO | `src/shared/logger/index.ts` |
+| FDD-INT-10 | `docs/FDD.md` | Padrão Existente | `paginated()` nas listagens | CODIGO | `src/shared/http/response.ts` |
+| FDD-INT-11 | `docs/FDD.md` | Padrão Existente | `src/worker.ts` (novo) segue o bootstrap/shutdown existente; prisma próprio; connection_limit ≥ concorrência + 4 | CODIGO | `src/config/database.ts` |
+| FDD-INT-12 | `docs/FDD.md` | Padrão Existente | Variáveis `WEBHOOK_*` (inclui TASK_MAX_MS e ALLOW_PRIVATE_DESTINATIONS, proibida em produção) e invariantes via superRefine | CODIGO | `src/config/env.ts` |
+| FDD-INT-13 | `docs/FDD.md` | Padrão Existente | Scripts `worker` e `worker:start`; https, dns e crypto nativos, sem dependência nova | CODIGO | `package.json` |
+| FDD-INT-14 | `docs/FDD.md` | Padrão Existente | Novos modelos (com o lease), enum, relação em `Customer`, migration aditiva | CODIGO | `prisma/schema.prisma` |
+| FDD-INT-15 | `docs/FDD.md` | Padrão Existente | Limpeza das tabelas novas e do lease; factory; servidor HTTPS de teste com CA injetada; runPollOnce e drain | CODIGO | `tests/setup.ts` |
+| FDD-INT-16 | `docs/FDD.md` | Padrão Existente | `delete` físico de customer; cascata para os endpoints; eventos sobrevivem | CODIGO | `src/modules/customers/customer.service.ts` |
+| FDD-INT-17 | `docs/FDD.md` | Padrão Existente | `X-Request-Id` vem do cliente sem validação; é saneado antes de gravar | CODIGO | `src/middlewares/request-logger.middleware.ts` |
+| FDD-DEP-01 | `docs/FDD.md` | Dependência | Node ≥ 20: https.request com lookup, dns, net, AbortSignal.timeout, crypto | CODIGO | `package.json` |
+| FDD-DEP-02 | `docs/FDD.md` | Dependência | MySQL 8 (ROW_NUMBER, UTC_TIMESTAMP, MediumText) e Prisma 5; nenhum serviço novo | CODIGO | `docker-compose.yml` |
+| FDD-DEP-03 | `docs/FDD.md` | Dependência | Revisão de segurança ≥ 2 dias úteis; pauta do RFC-OQ-04 (e) mais a rotação de emergência | TRANSCRICAO | [09:46] Sofia |
+| FDD-DEP-04 | `docs/FDD.md` | Dependência | Clientes: https, validação da assinatura, deduplicação; portal | TRANSCRICAO | [09:26] Marcos; [09:40] Marcos |
+| FDD-DEP-05 | `docs/FDD.md` | Restrição | Contratos existentes inalterados; PATCH de status pode retornar `WEBHOOK_PUBLISH_FAILED` | TRANSCRICAO | [09:40] Bruno |
+| FDD-DEP-06 | `docs/FDD.md` | Restrição | Migration aditiva; uma instância ativa do worker, as demais em standby | TRANSCRICAO | [09:11] Diego; [09:12] Diego |
+| FDD-AC-01 | `docs/FDD.md` | Requisito Funcional | N webhooks inscritos → N linhas PENDING | TRANSCRICAO | [09:34] Bruno |
+| FDD-AC-02 | `docs/FDD.md` | Requisito Funcional | Status não assinado ou webhook inativo → nenhuma linha | TRANSCRICAO | [09:34] Bruno |
+| FDD-AC-03 | `docs/FDD.md` | Requisito Não Funcional | Falha na outbox → status, histórico e estoque inalterados; causa registrada no log | TRANSCRICAO | [09:40] Bruno |
+| FDD-AC-04 | `docs/FDD.md` | Requisito Não Funcional | Endpoint lento não atrasa o 1º envio de outro endpoint | TRANSCRICAO | [09:02] Marcos; [09:10] Larissa |
+| FDD-AC-05 | `docs/FDD.md` | Requisito Funcional | 5 headers e HMAC conferível | TRANSCRICAO | [09:44] Diego; [09:22] Sofia |
+| FDD-AC-06 | `docs/FDD.md` | Requisito Funcional | Duas assinaturas na carência; rotação durante a carência dá 409; revokePrevious dá 200 | TRANSCRICAO | [09:21] Sofia |
+| FDD-AC-07 | `docs/FDD.md` | Requisito Não Funcional | Timeout → tentativa com falha e retentativa em +1 min | TRANSCRICAO | [09:42] Diego; [09:17] Diego |
+| FDD-AC-08 | `docs/FDD.md` | Requisito Funcional | 6 falhas → DLQ com payload, motivo e timestamp | TRANSCRICAO | [09:18] Diego |
+| FDD-AC-09 | `docs/FDD.md` | Requisito Funcional | Replay: OPERATOR recebe 403; ADMIN recebe 202 com cycle 2; replay concorrente recebe 409 | TRANSCRICAO | [09:36] Sofia |
+| FDD-AC-10 | `docs/FDD.md` | Requisito Funcional | URL http, localhost ou IP privado literal dão 400 | TRANSCRICAO | [09:23] Sofia |
+| FDD-AC-11 | `docs/FDD.md` | Requisito Não Funcional | Secret só na criação e na rotação; nunca em listagens ou logs | TRANSCRICAO | [09:22] Diego |
+| FDD-AC-12 | `docs/FDD.md` | Requisito Não Funcional | 65.537 bytes vai para a DLQ com delivery attempt 0; 65.536 bytes é enviado | TRANSCRICAO | [09:24] Larissa |
+| FDD-AC-13 | `docs/FDD.md` | Requisito Funcional | Deliveries: até 100 itens, mais recentes primeiro, também para cadastro removido | TRANSCRICAO | [09:34] Marcos |
+| FDD-AC-14 | `docs/FDD.md` | Requisito Não Funcional | Segunda instância fica em standby e assume em até TTL + heartbeat | TRANSCRICAO | [09:12] Diego |
+| FDD-AC-15 | `docs/FDD.md` | Restrição | Testes existentes continuam passando | CODIGO | `tests/orders.test.ts` |
+| FDD-AC-16 | `docs/FDD.md` | Requisito Não Funcional | Eventos do mesmo pedido para o mesmo endpoint saem em ordem no primeiro envio | TRANSCRICAO | [09:12] Diego |
+| FDD-AC-17 | `docs/FDD.md` | Requisito Não Funcional | Linha presa volta à fila; no teto de reclaims vai para a DLQ | TRANSCRICAO | [09:24] Diego |
+| FDD-AC-18 | `docs/FDD.md` | Requisito Funcional | Pedido apagado ainda tem o evento entregue com o payload original | TRANSCRICAO | [09:52] Larissa |
+| FDD-AC-19 | `docs/FDD.md` | Requisito Não Funcional | SIGTERM: nenhum lote novo; linhas reservadas e não iniciadas são devolvidas; lease liberado | TRANSCRICAO | [09:11] Diego |
+| FDD-AC-20 | `docs/FDD.md` | Requisito Não Funcional | X-Request-Id gigante não impede a mudança de status | TRANSCRICAO | [09:04] Bruno |
+| FDD-RISK-01 | `docs/FDD.md` | Risco | Transação de status mais lenta | TRANSCRICAO | [09:04] Bruno; [09:43] Diego |
+| FDD-RISK-02 | `docs/FDD.md` | Risco | Clientes lentos ocupam todas as vagas; drenagem encerra na 1ª falha e há rodízio | TRANSCRICAO | [09:42] Diego |
+| FDD-RISK-03 | `docs/FDD.md` | Risco | Linha presa ou duplicata na recuperação | TRANSCRICAO | [09:25] Diego |
+| FDD-RISK-04 | `docs/FDD.md` | Risco | Duas instâncias ativas ou troca de instância quebram a ordem | TRANSCRICAO | [09:13] Larissa |
+| FDD-RISK-05 | `docs/FDD.md` | Risco | Secret recuperável no banco ou vazada em log; rotação de emergência | TRANSCRICAO | [09:21] Sofia; [09:22] Diego; [09:46] Sofia |
+| FDD-RISK-06 | `docs/FDD.md` | Risco | X-Timestamp fora da assinatura | TRANSCRICAO | [09:22] Sofia; [09:44] Diego |
+| FDD-RISK-07 | `docs/FDD.md` | Risco | Bytes do payload alterados ou sem espaço na coluna | TRANSCRICAO | [09:52] Larissa |
+| FDD-RISK-08 | `docs/FDD.md` | Risco | FKs novas quebram `DELETE /customers` ou apagam eventos | CODIGO | `src/modules/customers/customer.service.ts` |
+| FDD-RISK-09 | `docs/FDD.md` | Risco | Tabelas crescem sem arquivamento | TRANSCRICAO | [09:08] Diego |
+| FDD-RISK-10 | `docs/FDD.md` | Limitação | Ordem por pedido invertida durante o backoff | TRANSCRICAO | [09:13] Larissa; [09:14] Marcos |
+| FDD-RISK-11 | `docs/FDD.md` | Risco | SSRF via URL cadastrada; IP fixado contra DNS rebinding | TRANSCRICAO | [09:37] Sofia; [09:34] Marcos |
+| FDD-RISK-12 | `docs/FDD.md` | Risco | X-Request-Id do cliente quebra a mudança de status | CODIGO | `src/middlewares/request-logger.middleware.ts` |
+| FDD-ERR-18 | `docs/FDD.md` | Restrição | `WEBHOOK_DELIVERY_INTERNAL_ERROR`: exceção inesperada consome tentativa; no teto de reclaims vai para a DLQ (proposta) | TRANSCRICAO | [09:24] Diego |
+| FDD-RES-14 | `docs/FDD.md` | Restrição | try/catch total por evento; nenhuma linha fica sem tratamento (AMB-20) | TRANSCRICAO | [09:29] Bruno; [09:11] Diego |
+| FDD-AC-21 | `docs/FDD.md` | Requisito Não Funcional | Justiça: backlog de A não atrasa o evento novo de B | TRANSCRICAO | [09:38] Diego |
+| FDD-AC-22 | `docs/FDD.md` | Requisito Funcional | Pausa: inativo retém sem consumir tentativa; reativar retoma; 24h → DLQ; replay com cadastro inativo → 422 | TRANSCRICAO | [09:21] Bruno |
+| FDD-AC-23 | `docs/FDD.md` | Requisito Funcional | Endpoint inexistente leva o evento à DLQ com WEBHOOK_ENDPOINT_UNAVAILABLE | TRANSCRICAO | [09:21] Bruno |
+| FDD-AC-24 | `docs/FDD.md` | Requisito Não Funcional | Destino 127.0.0.1 é bloqueado; replay após PATCH da URL é aceito | TRANSCRICAO | [09:37] Sofia |
+| FDD-AC-25 | `docs/FDD.md` | Requisito Não Funcional | Resposta de 1MB é registrada com até 2KB | TRANSCRICAO | [09:34] Marcos |
+| FDD-AC-26 | `docs/FDD.md` | Requisito Não Funcional | Lock perdido: a tarefa antiga não grava estado e registra webhook_lock_lost | TRANSCRICAO | [09:12] Diego |
+| FDD-AC-27 | `docs/FDD.md` | Requisito Não Funcional | Na troca de instância, endpoint com PROCESSING da anterior não é reservado | TRANSCRICAO | [09:12] Diego |
+| FDD-RISK-13 | `docs/FDD.md` | Risco | Eventos de um período inativo não são gerados; orientação é não desativar em manutenção curta | TRANSCRICAO | [09:16] Diego; [09:34] Bruno |
+| FDD-AC-28 | `docs/FDD.md` | Requisito Não Funcional | Poll na fronteira da drenagem não reserva duas vezes o mesmo endpoint (busyEndpoints + claimId) | TRANSCRICAO | [09:12] Diego |
+| FDD-AC-29 | `docs/FDD.md` | Requisito Não Funcional | Bloqueio de IP literal, IPv6 e resolução múltipla; timeout classificado via signal.reason | TRANSCRICAO | [09:37] Sofia; [09:42] Diego |
+| FDD-AC-30 | `docs/FDD.md` | Requisito Não Funcional | Endpoint sem resposta libera a vaga na 1ª falha; os outros endpoints seguem atendidos | TRANSCRICAO | [09:38] Diego; [09:42] Diego |
+| FDD-RISK-14 | `docs/FDD.md` | Risco | Pool de conexões do worker esgotado faz o lease se perder | CODIGO | `src/config/database.ts` |
+| FDD-RISK-15 | `docs/FDD.md` | Risco | Custo da seleção cresce com o backlog; seleção em duas etapas usando só índice | TRANSCRICAO | [09:08] Diego |
