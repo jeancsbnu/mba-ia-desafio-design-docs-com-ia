@@ -16,7 +16,7 @@
 
 **Relógio.** Toda comparação e todo agendamento de tempo feito pelo worker e pelos serviços usa o relógio do banco, `UTC_TIMESTAMP(3)` (proposta). Isso evita misturar o relógio do processo com o do MySQL. O Prisma grava `DateTime` em UTC.
 
-**Pseudo-código.** Os trechos de SQL e as chamadas Prisma deste documento são pseudo-código. Expressões com `UTC_TIMESTAMP(3)` rodam via `$executeRaw`/`$queryRaw`. Quando uma operação usar o Prisma Client, o horário é lido do banco (`SELECT UTC_TIMESTAMP(3)`) no início do ciclo ou da requisição e passado como valor. Em `$queryRaw`, `ROW_NUMBER()` e `COUNT()` retornam `BigInt` e os booleanos retornam 0 ou 1.
+**Pseudo-código.** Os trechos de SQL e as chamadas Prisma deste documento são pseudo-código. Expressões com `UTC_TIMESTAMP(3)` rodam via `$executeRaw`/`$queryRaw`. Quando uma operação usar o Prisma Client, o horário é lido do banco (`SELECT UTC_TIMESTAMP(3)`) no início do ciclo ou da requisição e passado como valor. Em `$queryRaw`, `COUNT()` e agregações retornam `BigInt` e os booleanos retornam 0 ou 1.
 
 ---
 
@@ -80,6 +80,7 @@ Por isso a solução separa duas coisas ([ADR-001](adrs/ADR-001-outbox-no-mysql.
 | Arquivamento de linhas entregues | [09:08] Diego |
 | Itens do pedido no payload | [09:43] Diego |
 | Vários workers processando em paralelo | [09:13] Diego |
+| Ordem global e entrega exatamente uma vez | [09:13] Larissa, [09:25] Diego |
 | Eventos além de `order.status_changed` | [09:43] Diego, *AMB-11* |
 
 A criação de pedido (`create` em `order.service.ts`) **não** publica evento.
@@ -301,7 +302,7 @@ sequenceDiagram
   Note over H: falha, exceção ou expiração local → instância inativa
   P->>DB: devolve PROCESSING vencidos (ou DLQ no teto de reclaims)
   P->>DB: expira pausas longas (DLQ)
-  P->>DB: SELECT candidatos (ROW_NUMBER por endpoint, exclui ocupados e pausados no SQL)
+  P->>DB: SELECT endpoints com trabalho (GROUP BY, exclui ocupados e pausados) + lote por endpoint
   P->>DB: claim por endpoint (lockedBy=:me) + SELECT confirmação
   P-)T: inicia até (CONCURRENCY − ocupadas) tarefas, sem await
   loop até esgotar ou atingir TASK_MAX_EVENTS
@@ -425,7 +426,7 @@ O poll roda a cada **2s** ([09:09] Diego, [09:10] Larissa), só enquanto a inst�
 
 O tempo é controlado pelo banco. Os testes avançam o relógio ajustando `nextAttemptAt`, `lockedAt`, `expiresAt`, `deactivatedAt` e `previousSecretExpiresAt` direto nas linhas. Já os prazos de rede (`WEBHOOK_HTTP_TIMEOUT_MS`, TTL do lease) são reduzidos por variável de ambiente.
 
-O destino de teste é um servidor **HTTPS** local com certificado autoassinado, cuja CA é injetada com `NODE_EXTRA_CA_CERTS` no setup. Os testes rodam com `WEBHOOK_ALLOW_PRIVATE_DESTINATIONS=true`, que libera loopback e redes privadas. O `superRefine` do env **proíbe** essa flag com `NODE_ENV=production`. O AC-24, que verifica o bloqueio, roda com a flag desligada. O arquivo `src/worker.ts` (novo) faz apenas o bootstrap e agenda essas funções.
+O destino de teste é um servidor **HTTPS** local com certificado autoassinado, cuja CA é injetada com `NODE_EXTRA_CA_CERTS` **no script npm de teste** (`NODE_EXTRA_CA_CERTS=… vitest run`). O Node só lê essa variável na partida do processo, e os forks do vitest herdam o ambiente do processo pai; definir a variável em `tests/setup.ts` não teria efeito. Os testes rodam com `WEBHOOK_ALLOW_PRIVATE_DESTINATIONS=true`, que libera loopback e redes privadas. O `superRefine` do env **proíbe** essa flag com `NODE_ENV=production`. O AC-24, que verifica o bloqueio, roda com a flag desligada. Essas funções ficam em `src/modules/webhooks/webhook.worker.ts` (novo; o nome é *interpretação, AMB-12*). O arquivo `src/worker.ts` (novo) faz apenas o bootstrap e agenda essas funções.
 
 ### FDD-FLUXO-03: Entrega de um evento
 
@@ -1188,11 +1189,11 @@ Os números de linha referem-se ao estado atual do repositório.
 | FDD-INT-08 | `src/middlewares/error.middleware.ts` | Sem alteração: o middleware já serializa qualquer `AppError` ([09:29] Bruno). Dois cuidados no desenho:<br>• o ramo de `AppError` não grava log, então `publishWebhookEvent` loga a causa antes de lançar o erro;<br>• o código Prisma `P2003` cai em 500, o que motivou a cascata de customer para endpoint e a ausência de FK na outbox. |
 | FDD-INT-09 | `src/shared/logger/index.ts` | `redactPaths` ganha `secret`, `previousSecret`, `*.secret` e `*.previousSecret`. O worker usa um logger filho. Nenhuma biblioteca nova ([09:29] Bruno). |
 | FDD-INT-10 | `src/shared/http/response.ts` | `paginated()` é usado nos CONTRATO-02 e CONTRATO-08. |
-| FDD-INT-11 | `src/server.ts` e `src/config/database.ts` | Modelo para o `src/worker.ts` (novo): `bootstrap()`, tratamento de `SIGINT`/`SIGTERM` com `prisma.$disconnect()` e `logger.fatal` em caso de falha. O worker importa `prisma` de `src/config/database.ts`; como roda em outro processo, tem instância e pool próprios, com o mesmo banco ([09:30] Bruno).<br>**(proposta)** A `DATABASE_URL` do processo worker leva `connection_limit` ≥ `WEBHOOK_CONCURRENCY + 4`, para que tarefas, poll e heartbeat não esperem na fila do pool. O padrão do Prisma é `2 × CPUs + 1`. Esperando, o heartbeat poderia perder o lease por falta de conexão. O bootstrap avisa no log se o limite estiver abaixo disso. |
+| FDD-INT-11 | `src/server.ts` e `src/config/database.ts` | Modelo para o `src/worker.ts` (novo), que importa a lógica de `src/modules/webhooks/webhook.worker.ts` (novo, AMB-12): `bootstrap()`, tratamento de `SIGINT`/`SIGTERM` com `prisma.$disconnect()` e `logger.fatal` em caso de falha. O worker importa `prisma` de `src/config/database.ts`; como roda em outro processo, tem instância e pool próprios, com o mesmo banco ([09:30] Bruno).<br>**(proposta)** A `DATABASE_URL` do processo worker leva `connection_limit` ≥ `WEBHOOK_CONCURRENCY + 4`, para que tarefas, poll e heartbeat não esperem na fila do pool. O padrão do Prisma é `2 × CPUs + 1`. Esperando, o heartbeat poderia perder o lease por falta de conexão. O bootstrap avisa no log se o limite estiver abaixo disso. |
 | FDD-INT-12 | `src/config/env.ts` e `.env.example` | (proposta) Variáveis novas, todas com valor padrão:<br>• `WEBHOOK_POLL_INTERVAL_MS=2000` ([09:09] Diego)<br>• `WEBHOOK_HTTP_TIMEOUT_MS=10000` ([09:42] Diego)<br>• `WEBHOOK_MAX_RETRIES=5` ([09:17] Larissa)<br>• `WEBHOOK_PER_ENDPOINT_BATCH=5`<br>• `WEBHOOK_CONCURRENCY=10`<br>• `WEBHOOK_TASK_MAX_EVENTS=50`<br>• `WEBHOOK_TASK_MAX_MS=30000`<br>• `WEBHOOK_STUCK_AFTER_MS=300000`<br>• `WEBHOOK_ALLOW_PRIVATE_DESTINATIONS=false` (só para teste; proibida com `NODE_ENV=production`)<br>• `WEBHOOK_MAX_RECLAIMS=3`<br>• `WEBHOOK_PAUSE_MAX_MS=86400000`<br>• `WEBHOOK_LEASE_TTL_MS=30000`<br>• `WEBHOOK_LEASE_HEARTBEAT_MS=10000`<br>Um `superRefine` no schema valida as invariantes:<br>• TTL ≥ 3 × heartbeat;<br>• `STUCK_AFTER` > `PER_ENDPOINT_BATCH` × timeout;<br>• número de intervalos de backoff = `MAX_RETRIES`.<br>O `loadEnv()` encerra o processo se a configuração for inválida. |
 | FDD-INT-13 | `package.json` | Scripts novos, no padrão de `dev`/`start` ([09:11] Larissa): `"worker": "tsx --env-file=.env src/worker.ts"` e `"worker:start": "node --env-file=.env dist/worker.js"`. Nenhuma dependência nova: `node:https`, `node:dns`, `node:net` e `node:crypto` são nativos no Node ≥ 20. |
 | FDD-INT-14 | `prisma/schema.prisma` | Modelos da seção 4, enum e relação `webhooks WebhookEndpoint[]` em `Customer`. Migration aditiva em `prisma/migrations/`, gerada com `--create-only` e editada para inserir a linha do lease. O worker também cria essa linha na partida. |
-| FDD-INT-15 | `tests/setup.ts` e `tests/helpers/factories.ts` | No `beforeEach`, apagar `webhookDelivery`, `webhookDeadLetter`, `webhookOutbox` e `webhookEndpoint` e resetar `webhookWorkerLease`, tudo antes de `customer`. Criar a factory `createTestWebhook`. Criar `tests/webhooks.test.ts` (novo), que faz `await runPollOnce()` e `drain()` contra um servidor **HTTPS** local. O certificado é autoassinado e a CA vem por `NODE_EXTRA_CA_CERTS`. O teste roda com `WEBHOOK_ALLOW_PRIVATE_DESTINATIONS=true` e cadastra endpoints pela factory, sem passar pelo Zod. |
+| FDD-INT-15 | `tests/setup.ts` e `tests/helpers/factories.ts` | No `beforeEach`, apagar `webhookDelivery`, `webhookDeadLetter`, `webhookOutbox` e `webhookEndpoint` e resetar `webhookWorkerLease`, tudo antes de `customer`. Criar a factory `createTestWebhook`. Criar `tests/webhooks.test.ts` (novo), que faz `await runPollOnce()` e `drain()` contra um servidor **HTTPS** local. O certificado é autoassinado e a CA vem por `NODE_EXTRA_CA_CERTS`, definida no script npm de teste. O teste roda com `WEBHOOK_ALLOW_PRIVATE_DESTINATIONS=true` e cadastra endpoints pela factory, sem passar pelo Zod. |
 | FDD-INT-16 | `src/modules/customers/customer.service.ts` | O `delete` é físico. A cascata de customer para endpoint evita uma falha nova, e os eventos pendentes sobrevivem e vão para a DLQ. |
 | FDD-INT-17 | `src/middlewares/request-logger.middleware.ts` | Fonte do `X-Request-Id`, que vem do cliente sem validação. Por isso o valor é saneado antes de ser gravado (FLUXO-01). Sem alteração neste arquivo. |
 
@@ -1203,7 +1204,7 @@ Os números de linha referem-se ao estado atual do repositório.
 | ID | Dependência | Situação |
 |---|---|---|
 | FDD-DEP-01 | Node.js ≥ 20 (`engines` em `package.json`) | `node:https` (com `lookup` próprio), `node:dns`, `node:net`, `AbortSignal.timeout` e `node:crypto`. Nenhuma dependência npm nova. |
-| FDD-DEP-02 | MySQL 8 (`docker-compose.yml`, `mysql:8.0`) e Prisma 5 | Suporta `ROW_NUMBER() OVER`, `UTC_TIMESTAMP(3)`, `MediumText`, `Json` e `INSERT IGNORE`. Nenhum serviço novo, sem Redis ([09:07] Diego). |
+| FDD-DEP-02 | MySQL 8 (`docker-compose.yml`, `mysql:8.0`) e Prisma 5 | Suporta `UTC_TIMESTAMP(3)`, `INTERVAL … MICROSECOND`, `MediumText`, `Json` e `INSERT IGNORE`. Nenhum serviço novo, sem Redis ([09:07] Diego). |
 | FDD-DEP-03 | Revisão de segurança | Pelo menos 2 dias úteis antes do deploy, cobrindo HMAC e geração de secret ([09:46] Sofia). Inclui a pauta de [RFC-OQ-04](RFC.md#questões-em-aberto), cujo item (e) trata da restrição de destinos. Acrescenta a rotação de emergência proposta neste FDD (FLUXO-07). |
 | FDD-DEP-04 | Clientes | Endpoint https, validação da assinatura e deduplicação por `X-Event-Id`, tudo documentado no portal ([09:26] Marcos, [09:40] Marcos). |
 | FDD-DEP-05 | Compatibilidade da API | Nenhum contrato existente muda. Única mudança de comportamento: `PATCH /api/v1/orders/:id/status` pode responder `500 WEBHOOK_PUBLISH_FAILED`, e nesse caso o status **não** muda ([09:40] Bruno). |

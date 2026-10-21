@@ -25,7 +25,7 @@ Com o outbox ([ADR-001](ADR-001-outbox-no-mysql.md)), os eventos ficam gravados 
    - *Interpretação adotada (AMB-12):* o arquivo é `src/modules/webhooks/webhook.worker.ts` (novo), uma das duas opções citadas em [09:28] Bruno.
    - `src/worker.ts` é só a entry-point.
 3. **Polling.** O worker lê a outbox em loop **a cada 2 segundos**, buscando em lotes pequenos os eventos pendentes mais antigos ([09:08] Diego, [09:09] Diego).
-4. **Uma única instância.** Ela processa em ordem de criação, e assim os eventos de um mesmo pedido saem na ordem em que foram gerados ([09:12] Diego). `ADR-002-DEC-03`
+4. **Uma única instância.** Ela processa em ordem de criação, e assim os eventos de um mesmo pedido saem na ordem em que foram gerados ([09:12] Diego). `ADR-002-DEC-03` O desenho final (lease, seleção justa por endpoint, uma tarefa por endpoint) está em [FDD FLUXO-02](../FDD.md#fdd-fluxo-02-ciclo-do-worker).
 
 ## Alternativas Consideradas
 

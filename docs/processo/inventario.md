@@ -190,7 +190,7 @@ Saída do [P-01](prompts.md#p-01-mapeamento-do-código-existente), conferida na 
 | `src/server.ts` | Bootstrap da API e shutdown em SIGINT/SIGTERM com `prisma.$disconnect()`. Serve de modelo para `src/worker.ts`. |
 | `src/config/database.ts` | `createPrismaClient()` e singleton `prisma`. |
 | `src/config/env.ts` | Env validado por Zod (`DATABASE_URL`, `JWT_SECRET`, `LOG_LEVEL`, …). |
-| `package.json` | Scripts `dev`, `build`, `start`, `test`, `db:*`; **não há `worker`**. Sem cliente HTTP (usar `fetch` nativo do Node ≥ 20 e `node:crypto`). Dependência `uuid` disponível. |
+| `package.json` | Scripts `dev`, `build`, `start`, `test`, `db:*`; **não há `worker`**. Sem cliente HTTP (o FDD final usa `node:https` com `lookup` próprio, por causa do SSRF, e `node:crypto`; ambos nativos do Node ≥ 20). Dependência `uuid` disponível. |
 | `tests/setup.ts` | `deleteMany` em ordem de FK antes de cada teste (MySQL real). |
 | `tests/helpers/factories.ts` | `getTestApp`, `createTestUser`, `createTestCustomer`, `bootstrapAuthenticatedUser`. |
 | `tests/orders.test.ts` | Testes de integração com supertest em `/api/v1/orders/:id/status`. |

@@ -42,7 +42,7 @@ O módulo de webhooks segue os padrões do projeto ([09:30] Larissa). A decisão
 
 ### 2. Erros `ADR-006-DEC-02`
 
-- Todo erro do módulo é um `AppError` cujo `errorCode` tem o **prefixo `WEBHOOK_`**, como `WEBHOOK_NOT_FOUND` e `WEBHOOK_INVALID_URL` ([09:28] Bruno, [09:29] Larissa).
+- Todo erro novo do módulo é um `AppError` cujo `errorCode` tem o **prefixo `WEBHOOK_`**, como `WEBHOOK_NOT_FOUND` ([09:28] Bruno, [09:29] Larissa). `WEBHOOK_INVALID_URL`, também citado como exemplo na reunião, é absorvido pelo `VALIDATION_ERROR` existente no FDD §7 (*interpretação, AMB-26*).
 - As novas classes reutilizam as classes de `src/shared/errors/http-errors.ts` que aceitam código customizado: `BadRequestError` (400), `ConflictError` (409) e `UnprocessableEntityError` (422). É o mesmo caminho usado por `InvalidStatusTransitionError` e `InsufficientStockError`.
 - Para os casos sem classe que aceite código, a nova classe estende `AppError` diretamente. O principal é o 404: `NotFoundError` fixa o código `NOT_FOUND`.
 - O `src/middlewares/error.middleware.ts` não muda, porque já serializa qualquer `AppError` ([09:29] Bruno).
@@ -102,7 +102,7 @@ Diego perguntou em [09:51].
 
 - **Nada novo a aprender.** Quem conhece um módulo do projeto navega no de webhooks sem esforço, e a revisão de código fica mais simples.
 - **Erros no formato padrão sem mexer no middleware.** Os novos erros chegam ao cliente da API como os demais, sem alteração no error middleware.
-- **Acoplamento mínimo em pedidos.** A mudança em `order.service.ts` se resume a uma chamada de função dentro da transação.
+- **Acoplamento mínimo em pedidos.** A mudança em `order.service.ts` se resume a uma chamada de função dentro da transação, mais o repasse opcional de um id de correlação proposto no FDD (FDD-INT-01/02).
 - **Sem dependências novas.** Log, validação e autorização usam o que já existe.
 
 ### Negativas
