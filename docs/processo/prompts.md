@@ -112,6 +112,17 @@ Saída: tabela (# | Trecho | Problema | Evidência | Correção sugerida), orden
 gravidade, e um veredito de uma linha. Não edite arquivos.
 ```
 
+**Variantes por fase.** Este é o template base. Cada fase acrescentou instruções próprias ao prompt enviado ao revisor:
+
+| Fase | Documento | O que foi acrescentado | Iteração |
+|---|---|---|---|
+| 1 | ADRs | Categorias `INCONSISTENCIA` (entre ADRs) e `INTERPRETACAO` (AMB sem marcação), avaliação das consequências negativas e das alternativas plausíveis, cobertura das 6 decisões | IT-06 |
+| 2 | RFC | Requisitos do enunciado, categoria `PRONOME`, avaliação de concisão (2 a 4 páginas), base da coluna "Quem decide", validade do diagrama Mermaid | IT-07 |
+| 3 | FDD | Papel de **engenheiro sênior**, lista do que conferir no código (linhas de `changeStatus`, `validate`, `error.middleware`, `NotFoundError`, `redactPaths`, scripts, `docker-compose`) e falhas técnicas a procurar (corridas, lease, replay, estados) | IT-08 |
+| 3 | FDD, 2ª e 3ª passadas | Mesmo revisor, retomado com o contexto da passada anterior: status de cada achado anterior (resolvido/parcial/não resolvido) mais problemas novos | IT-09, IT-10 |
+| 4 | PRD | Papel de **PM**, categoria `INVENTADO` (número sem fonte), pontos de inconsistência com o FDD a conferir | IT-11 |
+| 6 | README | Revisão de fidelidade: números recalculados, cópia fiel dos prompts, casos de iteração contra o log, links e âncoras | IT-13 |
+
 ---
 
 ## P-04: Geração dos ADRs
@@ -310,4 +321,41 @@ Regras de conteúdo:
 - Opiniões (ex.: "Stripe faz assim") são atribuídas a quem falou.
 - Probabilidade e impacto são julgamento do autor e devem ser declarados como tal.
 - Toda afirmação cita [hh:mm] Nome ou um documento do pacote.
+```
+
+---
+
+## P-08: README do processo
+
+- **Fase:** 6
+- **Ferramenta:** Claude Code, sessão principal (Opus 5.5)
+- **Objetivo:** substituir o enunciado por um relato fiel do processo, montado só a partir dos registros versionados. Nada é reconstruído de memória.
+
+```text
+Reescreva o README.md da raiz. O texto atual é o enunciado do desafio e deve ser
+substituído pelo relato do processo de produção. Mantenha apenas um link para o
+enunciado original (commit e7f6311).
+
+Fontes permitidas: docs/processo/prompts.md, docs/processo/iteracoes.md,
+docs/processo/inventario.md, `git log` da branch e a saída de
+node docs/processo/validar-entrega.mjs. Todo número citado (achados, linhas do
+tracker, palavras, iterações) precisa vir dessas fontes.
+
+Seções obrigatórias, nesta ordem:
+- Sobre o desafio: 1 a 2 parágrafos, nas minhas palavras.
+- Ferramentas de IA utilizadas: cada ferramenta com o papel que teve. Seja
+  honesto sobre o que foi e o que não foi usado.
+- Workflow adotado: a ordem dos documentos, as fases com checkpoint humano e
+  como a interação com a IA foi organizada (geração, revisão por outro modelo,
+  correção, aprovação).
+- Prompts customizados: pelo menos 2, em blocos de código, copiados de
+  prompts.md, com uma nota curta sobre o porquê de cada um.
+- Iterações e ajustes: casos concretos em que a IA errou ou ficou rasa e o que
+  foi corrigido; número de iterações principais.
+- Como navegar a entrega: árvore de arquivos, ordem de leitura sugerida e como
+  rodar o validador.
+
+Escreva em primeira pessoa, como o aluno no papel de maestro. Sem marketing e sem
+superlativos. As decisões do usuário nos checkpoints (melhorias pedidas, 3ª
+passada do FDD, ajustes do PRD) aparecem como decisões humanas.
 ```

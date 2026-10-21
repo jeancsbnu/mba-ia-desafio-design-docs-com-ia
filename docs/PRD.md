@@ -53,7 +53,7 @@ Este PRD trata do **porquê** e do **quê**. O **como** está no [RFC](RFC.md) e
 | PRD-CEN-06 | O cliente investiga um aviso que não chegou consultando os últimos 100 envios, com resultado, resposta e tempo de cada um. | [09:34] Marcos |
 | PRD-CEN-07 | Um aviso esgotou as tentativas. Um administrador o reprocessa, e a plataforma registra quem fez isso. | [09:18] Diego, [09:36] Sofia |
 | PRD-CEN-08 | O cliente tem vários endereços cadastrados, e cada aviso informa de qual cadastro veio. | [09:44] Sofia |
-| PRD-CEN-09 | O cliente desativa um endereço *(interpretação de "estado ativo", [09:21] Bruno)*. Enquanto o endereço está inativo, as mudanças de status não geram avisos para ele. Os avisos que já estavam pendentes ficam retidos por até 24h e depois vão para a fila de falhas. | [09:21] Bruno, [FDD FLUXO-08](FDD.md#fdd-fluxo-08-crud-de-cadastro) |
+| PRD-CEN-09 | O cliente desativa um endereço *(interpretação de "estado ativo", [09:21] Bruno)*. Enquanto o endereço está inativo, as mudanças de status não geram avisos para ele. Os avisos que já estavam pendentes ficam retidos por até 24h *(prazo proposto no FDD)* e depois vão para a fila de falhas. | [09:21] Bruno, [FDD FLUXO-08](FDD.md#fdd-fluxo-08-crud-de-cadastro) |
 | PRD-CEN-10 | Um desenvolvedor do cliente integra seguindo o portal, que explica a garantia de "ao menos uma vez" e a limitação de ordem. | [09:26] Marcos, [09:13] Larissa |
 
 ## 4. Objetivos e métricas de sucesso
@@ -84,6 +84,7 @@ Este PRD trata do **porquê** e do **quê**. O **como** está no [RFC](RFC.md) e
 | PRD-OOS-05 | **Itens do pedido** no aviso | Não vão. O cliente consulta o pedido se precisar. | [09:43] Diego |
 | PRD-OOS-06 | **Ordem global** e entrega **exatamente uma vez** | Não oferecidas. Ver PRD-NFR-04. | [09:13] Larissa, [09:14] Marcos, [09:25] Diego |
 | PRD-OOS-07 | **Várias instâncias** de processamento em paralelo | "Problema do futuro, não agora." | [09:13] Diego |
+| PRD-OOS-08 | **Outros tipos de evento** (ex.: criação de pedido) | Só a mudança de status foi discutida (`order.status_changed`) *(interpretação, AMB-11)* | [09:43] Diego |
 
 ### Em observação (questão em aberto)
 
@@ -103,7 +104,7 @@ O **controle de volume de envio por cliente** (rate limiting) não é implementa
 | PRD-FR-08 | Cada aviso traz um **identificador único**, que se repete nos reenvios, e informa **de qual cadastro** veio. | [09:25] Diego, [09:44] Sofia |
 | PRD-FR-09 | O aviso traz os **dados essenciais da mudança**: pedido, número, status anterior e novo, cliente, momento e valor total. **Não** traz os itens. | [09:43] Diego |
 | PRD-FR-10 | Se o cliente não responder em **até 10s**, ou não responder com sucesso, a plataforma **tenta de novo**, em intervalos crescentes, por ~15h. Considerar sucesso apenas a resposta 2xx é *(interpretação, AMB-17)*. | [09:15] Diego, [09:17] Diego, [09:42] Diego |
-| PRD-FR-11 | Avisos que esgotam as tentativas vão para uma **fila de falhas**. Um administrador pode **reprocessá-los**, e a plataforma registra quem fez isso. | [09:18] Diego, [09:36] Sofia |
+| PRD-FR-11 | Avisos que esgotam as tentativas vão para uma **fila de falhas**. Um administrador pode consultá-la *(proposta)* e **reprocessar** os avisos, e a plataforma registra quem fez isso. O reprocessamento não vale para avisos acima de 64KB nem para endereços removidos ou inativos. | [09:18] Diego, [09:36] Sofia |
 | PRD-FR-12 | O cliente consulta os **últimos 100 envios** de um endereço, com resultado, conteúdo, resposta e tempo. A contagem por endereço e por tentativa é *(interpretação, AMB-24 e AMB-05)*. | [09:34] Marcos |
 
 ## 7. Requisitos não funcionais
@@ -122,7 +123,7 @@ O **controle de volume de envio por cliente** (rate limiting) não é implementa
 
 | Decisão | O que ganhamos | O que aceitamos | ADR |
 |---|---|---|---|
-| Registrar o aviso junto com a mudança de status e enviá-lo em segundo plano | Nenhum aviso se perde, e o cliente nunca trava a plataforma | O envio é quase em tempo real, não instantâneo. Se o aviso não puder ser registrado, a mudança de status é desfeita. | [ADR-001](adrs/ADR-001-outbox-no-mysql.md), [ADR-002](adrs/ADR-002-worker-separado-em-polling.md) |
+| Registrar o aviso junto com a mudança de status e enviá-lo em segundo plano | Nenhum aviso registrado se perde, e o cliente nunca trava a plataforma | O envio é quase em tempo real, não instantâneo. Se o aviso não puder ser registrado, a mudança de status é desfeita. | [ADR-001](adrs/ADR-001-outbox-no-mysql.md), [ADR-002](adrs/ADR-002-worker-separado-em-polling.md) |
 | Retentar por ~15h e depois mandar para a fila de falhas | Indisponibilidades de horas ficam cobertas | Depois disso, o reenvio é manual e o cliente não recebe alerta | [ADR-003](adrs/ADR-003-retry-backoff-e-dlq.md) |
 | Assinar com uma secret por endereço | Origem verificável; um vazamento atinge só um endereço | O cliente precisa implementar a verificação | [ADR-004](adrs/ADR-004-hmac-sha256-secret-por-endpoint.md) |
 | Entregar ao menos uma vez | Simplicidade: não exige coordenação entre os dois lados | O cliente precisa descartar duplicatas | [ADR-005](adrs/ADR-005-at-least-once-com-x-event-id.md) |

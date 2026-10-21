@@ -46,6 +46,7 @@ flowchart LR
   subgraph DB["MySQL existente"]
     O[("orders +<br/>order_status_history")]
     EP[("cadastro de webhooks<br/>(nome proposto: webhook_endpoints)")]
+    DV[("histórico de entregas<br/>(proposta: webhook_deliveries)")]
     OB[("webhook_outbox")]
     DL[("webhook_dead_letter")]
   end
@@ -58,6 +59,8 @@ flowchart LR
   W -->|lê pendentes| OB
   W -->|URL e secret| EP
   W -->|POST assinado HMAC| C
+  W -->|registra tentativa| DV
+  CFG -->|consulta histórico| DV
   W -->|retentativas esgotadas| DL
   CFG -->|replay ADMIN| DL
   DL -->|recoloca como pendente| OB
@@ -65,12 +68,12 @@ flowchart LR
 
 | ID | Componente | Visão geral | Base |
 |---|---|---|---|
-| RFC-PROP-01 | Registro transacional | Dentro da transação de `changeStatus`, uma nova função `publishWebhookEvent(tx, …)` grava em `webhook_outbox` o evento `order.status_changed`. Ela grava um evento por webhook do customer inscrito no novo status *(interpretação, ADR-001)*, com o payload já montado (snapshot). Se essa gravação falhar, a mudança de status é desfeita. | [ADR-001](adrs/ADR-001-outbox-no-mysql.md), [ADR-007](adrs/ADR-007-payload-snapshot-na-insercao.md) |
-| RFC-PROP-02 | Entrega assíncrona | Worker em processo próprio (`src/worker.ts`, novo), no mesmo banco, lendo a cada 2s os pendentes mais antigos. Por ser instância única, mantém a ordem dos eventos de cada pedido, mas só no primeiro envio *(interpretação, ADR-002)*. | [ADR-002](adrs/ADR-002-worker-separado-em-polling.md) |
+| RFC-PROP-01 | Registro transacional | Dentro da transação de `changeStatus`, uma nova função `publishWebhookEvent(tx, …)` grava em `webhook_outbox` o evento `order.status_changed`. Ela grava um evento por webhook do customer **ativo, não removido e inscrito** no novo status *(interpretação, ADR-001)*, com o payload já montado (snapshot). Se essa gravação falhar, a mudança de status é desfeita. | [ADR-001](adrs/ADR-001-outbox-no-mysql.md), [ADR-007](adrs/ADR-007-payload-snapshot-na-insercao.md) |
+| RFC-PROP-02 | Entrega assíncrona | Worker em processo próprio (`src/worker.ts`, novo), no mesmo banco, lendo a cada 2s os pendentes mais antigos, com seleção justa por endpoint ([FDD FLUXO-02](FDD.md#fdd-fluxo-02-ciclo-do-worker)). A instância única é garantida por um lease no banco. Por ser instância única, mantém a ordem dos eventos de cada pedido, mas só no primeiro envio *(interpretação, ADR-002)*. | [ADR-002](adrs/ADR-002-worker-separado-em-polling.md) |
 | RFC-PROP-03 | Resiliência | Retentativas com backoff exponencial por cerca de 15h. Depois disso, o evento é movido para `webhook_dead_letter`. O replay é manual, exclusivo de ADMIN e auditado. | [ADR-003](adrs/ADR-003-retry-backoff-e-dlq.md) |
 | RFC-PROP-04 | Autenticidade | Assinatura HMAC-SHA256 do corpo, enviada no header `X-Signature`. Cada endpoint tem secret própria, gerada pela plataforma e rotacionável com 24h de carência. | [ADR-004](adrs/ADR-004-hmac-sha256-secret-por-endpoint.md) |
 | RFC-PROP-05 | Semântica de entrega | At-least-once. O cliente deduplica pelo `X-Event-Id`, que se mantém igual nas retentativas e no replay *(interpretação, ADR-005)*. | [ADR-005](adrs/ADR-005-at-least-once-com-x-event-id.md) |
-| RFC-PROP-06 | Superfície de API | Operações autenticadas para cadastrar, editar, remover e listar webhooks de um customer, escolher os status de interesse, consultar o histórico de entregas e rotacionar a secret. Há ainda uma operação administrativa de replay. Os contratos estão no [FDD](FDD.md). | [09:21] Sofia, [09:31] Marcos, [09:33] Bruno, [09:34] Marcos, [09:36] Larissa |
+| RFC-PROP-06 | Superfície de API | Operações autenticadas para cadastrar, editar, desativar, reativar, remover e listar webhooks de um customer, escolher os status de interesse, consultar o histórico de entregas e rotacionar a secret. Há ainda operações administrativas de consulta e replay da fila de falhas *(listagem: proposta do FDD)*. Os contratos estão no [FDD](FDD.md). | [09:21] Sofia, [09:31] Marcos, [09:33] Bruno, [09:34] Marcos, [09:36] Larissa |
 | RFC-PROP-07 | Encaixe no código | Novo módulo `src/modules/webhooks/` no padrão dos demais: `AppError` com prefixo `WEBHOOK_`, Pino e `requireRole`. O worker usa um PrismaClient próprio. | [ADR-006](adrs/ADR-006-reuso-dos-padroes-do-projeto.md) |
 
 ## Alternativas consideradas
@@ -93,9 +96,9 @@ Pontos levantados na reunião que ficaram sem decisão. A transcrição não des
 | ID | Questão | Estado na reunião | O que falta decidir | Responsável sugerido |
 |---|---|---|---|---|
 | RFC-OQ-01 | **Rate limiting de envio**: 50 pedidos de um cliente mudando em um minuto geram 50 chamadas? ([09:38] Diego) | Larissa: "observar e decidir depois" ([09:39] Larissa). Diego: implementar "se virar problema" ([09:39] Diego). | Qual sinal caracteriza o problema e qual seria o limite. *(Sugestão do autor: o histórico de entregas já mostra o volume por webhook.)* | Larissa, Diego |
-| RFC-OQ-02 | **Escalar o worker** além de uma instância | "Problema do futuro, não agora". Opções: particionar por `order_id` ou usar lock pessimista ([09:13] Diego). | Gatilho para escalar e qual opção usar. RFC-RISK-02 pode antecipar a decisão. | Diego |
+| RFC-OQ-02 | **Escalar o worker** além de uma instância | "Problema do futuro, não agora". Opções: particionar por `order_id` ou usar lock pessimista ([09:13] Diego). | Gatilho para escalar e qual opção usar. A mitigação de cliente lento dentro de uma instância já está no FDD (FLUXO-02); a escala horizontal continua em aberto. | Diego |
 | RFC-OQ-03 | **Permissões do CRUD** de webhooks | "Por enquanto sim. Mais pra frente a gente pode endurecer" ([09:37] Sofia). | Escopo por cliente. Hoje o `customerId` vem no body ou no path ([09:32] Larissa), e qualquer usuário autenticado consegue gerir webhooks de qualquer customer. | Sofia, Larissa |
-| RFC-OQ-04 | **Itens para a revisão de segurança** (derivados pelo autor) | Sofia vai revisar "HMAC e geração de secret" antes do deploy, em pelo menos 2 dias úteis ([09:46] Sofia). | Levar para a revisão: (a) secret armazenada de forma recuperável ([ADR-004](adrs/ADR-004-hmac-sha256-secret-por-endpoint.md)); (b) dupla assinatura durante a carência (ADR-004); (c) `X-Timestamp` fora da assinatura (ADR-004); (d) snapshot do pedido em repouso, decidido depois da saída de Sofia ([ADR-007](adrs/ADR-007-payload-snapshot-na-insercao.md)). (e) restrição de destinos das URLs cadastradas (SSRF), apontada na revisão do FDD ([FDD-RISK-11](FDD.md#13-riscos-e-mitigação)). | Sofia |
+| RFC-OQ-04 | **Itens para a revisão de segurança** (derivados pelo autor) | Sofia vai revisar "HMAC e geração de secret" antes do deploy, em pelo menos 2 dias úteis ([09:46] Sofia). | Levar para a revisão: (a) secret armazenada de forma recuperável ([ADR-004](adrs/ADR-004-hmac-sha256-secret-por-endpoint.md)); (b) dupla assinatura durante a carência (ADR-004); (c) `X-Timestamp` fora da assinatura (ADR-004); (d) snapshot do pedido em repouso, decidido depois da saída de Sofia ([ADR-007](adrs/ADR-007-payload-snapshot-na-insercao.md)). (e) restrição de destinos das URLs cadastradas (SSRF), apontada na revisão do FDD ([FDD-RISK-11](FDD.md#13-riscos-e-mitigação)). (f) rotação de emergência (`revokePrevious`) e bloqueio de nova rotação durante a carência, propostos no FDD ([FLUXO-07](FDD.md#fdd-fluxo-07-rotação-de-secret)). | Sofia |
 | RFC-OQ-05 | **Próxima fase do aviso por e-mail** | Decidido que o e-mail fica fora desta fase. A próxima ficou condicional: "Talvez próxima fase, depois que a gente medir o impacto" ([09:37] Larissa). | Qual métrica de impacto justifica a próxima fase | Marcos, Larissa |
 | RFC-OQ-06 | **Arquivamento** das linhas entregues da outbox | "Linhas entregues a gente arquiva depois de 30 dias ou assim, fora do escopo dessa feature" ([09:08] Diego). | Política de arquivamento. *(Extensão do autor: a DLQ também cresce e guarda dados de pedidos.)* | Diego |
 
@@ -103,7 +106,7 @@ Pontos levantados na reunião que ficaram sem decisão. A transcrição não des
 
 | ID | Impacto |
 |---|---|
-| RFC-IMP-01 | **Código e banco.** Uma chamada nova dentro de `changeStatus` (`src/modules/orders/order.service.ts`), o registro do novo módulo e novas tabelas por migration em `prisma/schema.prisma`. Os contratos HTTP existentes não mudam, mas o `PATCH /orders/:id/status` passa a falhar se a gravação na outbox falhar ([09:40] Bruno). |
+| RFC-IMP-01 | **Código e banco.** Uma chamada nova dentro de `changeStatus` (`src/modules/orders/order.service.ts`), com o repasse opcional do id de correlação pelo controller *(proposta, FDD-INT-02)*, o registro do novo módulo e novas tabelas por migration em `prisma/schema.prisma`. Os contratos HTTP existentes não mudam, mas o `PATCH /orders/:id/status` passa a falhar se a gravação na outbox falhar ([09:40] Bruno). |
 | RFC-IMP-02 | **Operação.** Um novo processo, iniciado pelo novo script `npm run worker` em `package.json`, para implantar e monitorar. |
 | RFC-IMP-03 | **Clientes.** Precisam expor um endpoint https, validar a assinatura e deduplicar. Isso será documentado em destaque no portal de desenvolvedor ([09:26] Marcos, [09:40] Marcos). |
 | RFC-IMP-04 | **Cronograma.** São 3 sprints, com a revisão de segurança incluída ([09:46] Larissa, [09:47] Larissa). A Atlas quer "pra fim de novembro" ([09:45] Marcos). |
@@ -115,6 +118,7 @@ Pontos levantados na reunião que ficaram sem decisão. A transcrição não des
 | RFC-RISK-03 | Se o worker único parar, os eventos acumulam. Uma segunda instância subida por engano quebra a ordenação. | A outbox não perde eventos. Proteção contra instância dupla e monitoramento *(proposta do autor, FDD)*. | [09:12] Diego, [09:13] Diego |
 | RFC-RISK-04 | A ordem dos eventos é garantida só por pedido, só com um worker e só no primeiro envio: retentativas podem inverter a ordem por até 12h. | Documentar como limitação conhecida. O cliente usa `from_status`, `to_status` e `timestamp` para reconciliar. | [09:13] Larissa, [09:17] Diego |
 | RFC-RISK-05 | A outbox cresce sem arquivamento. | Índices em status e data de criação. Política de arquivamento em RFC-OQ-06. | [09:07] Bruno, [09:08] Diego |
+| RFC-RISK-07 | Mudanças de status ocorridas enquanto o cadastro está inativo não geram evento, e os pendentes ficam pausados por até 24h antes de ir para a fila de falhas *(proposta do FDD)*. | Documentar no portal; orientar a não desativar em manutenção curta, já coberta pelas retentativas | [09:21] Bruno, [09:16] Diego |
 | RFC-RISK-06 | Vazamento de secret, que já aconteceu com um cliente. | Secret por endpoint, rotação e revisão de segurança. Ocultar a secret nos logs *(proposta do autor, FDD)*. | [09:21] Sofia, [09:22] Diego |
 
 ## Decisões relacionadas

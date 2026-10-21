@@ -74,7 +74,7 @@ Diego levantou a dúvida em [09:34]. Bruno respondeu que o filtro fica na inser�
 - **A transação fica mais pesada.** A transação de `changeStatus`, que Bruno já descreve como "pesada" ([09:04] Bruno), passa a fazer também a consulta dos webhooks inscritos e uma escrita por webhook inscrito.
 - **A tabela cresce sem limpeza.** O arquivamento das linhas entregues ficou fora do escopo desta feature ([09:08] Diego). A preocupação de Bruno com performance ([09:07] Bruno) é mitigada pelos índices, mas não eliminada. `ADR-001-CON-01`
 - **A latência mínima passa a depender do worker.** Como o envio é assíncrono, o atraso vem do intervalo do worker ([ADR-002](ADR-002-worker-separado-em-polling.md)).
-- **Mudanças de cadastro não retroagem.** Como o filtro é aplicado na inserção, alterar os status de interesse de um webhook só afeta eventos futuros. Pelo mesmo motivo, um webhook criado depois de uma mudança de status não recebe esse evento. É consequência direta de [09:34] Bruno.
+- **Mudanças de cadastro não retroagem.** Como o filtro é aplicado na inserção, alterar os status de interesse de um webhook só afeta eventos futuros. Pelo mesmo motivo, um webhook criado depois de uma mudança de status não recebe esse evento. É consequência direta de [09:34] Bruno. O mesmo vale para um cadastro **inativo**: enquanto estiver desativado, ele não gera evento (detalhe em [FDD FLUXO-08](../FDD.md#fdd-fluxo-08-crud-de-cadastro)).
 
 ### Trade-off
 

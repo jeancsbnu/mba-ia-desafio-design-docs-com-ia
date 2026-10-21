@@ -36,7 +36,7 @@ O risco de vazamento de credencial é concreto: um cliente já vazou uma secret 
    - Ela fica no cadastro do webhook, junto com a URL, o customer (`customerId`) e o estado ativo ([09:21] Bruno, [09:21] Sofia). `ADR-004-DEC-04`
 3. **Rotação pela API.** O cliente pode pedir uma nova secret pela API, e a anterior **continua válida por 24 horas em paralelo**, para que ele migre os seus sistemas. Depois disso, deixa de valer ([09:21] Sofia). `ADR-004-DEC-02`
    - *Interpretação adotada (AMB-15):* como há um único header de assinatura ([09:44] Diego), durante a carência o `X-Signature` leva as duas assinaturas, uma com a secret nova e outra com a antiga. Assim, um cliente que valide com qualquer uma das duas aceita a requisição. `ADR-004-DEC-03`
-   - O ponto está marcado para a revisão de segurança.
+   - O ponto está marcado para a revisão de segurança. O FDD acrescenta, como *proposta*, uma rotação de emergência sem carência e o bloqueio de nova rotação durante a carência ([FDD FLUXO-07](../FDD.md#fdd-fluxo-07-rotação-de-secret)).
 
 ## Alternativas Consideradas
 

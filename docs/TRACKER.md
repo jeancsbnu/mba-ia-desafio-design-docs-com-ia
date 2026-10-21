@@ -128,12 +128,12 @@ Este tracker liga cada item registrado nos documentos do pacote à sua origem: u
 | ADR-007-COD-02 | `docs/adrs/ADR-007-payload-snapshot-na-insercao.md` | Restrição | Após a criação, o pedido só muda de status ou é removido (`delete` em `PENDING`/`CANCELLED`) | CODIGO | `src/modules/orders/order.routes.ts` |
 | RFC-CTX-01 | `docs/RFC.md` | Restrição | Nenhum mecanismo de notificação, eventos ou filas; módulos registrados: auth, users, customers, products, orders | CODIGO | `src/routes/index.ts` |
 | RFC-CTX-02 | `docs/RFC.md` | Requisito Não Funcional | Clientes B2B fazem polling em `GET /orders`; "tempo real" é abaixo de 10s | TRANSCRICAO | [09:00] Marcos; [09:02] Marcos |
-| RFC-PROP-01 | `docs/RFC.md` | Decisão | `publishWebhookEvent(tx, …)` grava um evento por webhook inscrito, com payload snapshot; se falhar, o status é desfeito | TRANSCRICAO | [09:06] Diego; [09:34] Bruno; [09:41] Bruno; [09:52] Larissa |
-| RFC-PROP-02 | `docs/RFC.md` | Decisão | Worker em processo separado, polling a cada 2s, instância única; ordem por pedido só no primeiro envio | TRANSCRICAO | [09:09] Diego; [09:11] Larissa; [09:12] Diego |
+| RFC-PROP-01 | `docs/RFC.md` | Decisão | `publishWebhookEvent(tx, …)` grava um evento por webhook ativo, não removido e inscrito, com payload snapshot; falha desfaz o status | TRANSCRICAO | [09:06] Diego; [09:34] Bruno; [09:41] Bruno; [09:52] Larissa |
+| RFC-PROP-02 | `docs/RFC.md` | Decisão | Worker em processo separado, polling a cada 2s, seleção justa por endpoint, instância única garantida por lease | TRANSCRICAO | [09:09] Diego; [09:11] Larissa; [09:12] Diego |
 | RFC-PROP-03 | `docs/RFC.md` | Decisão | Backoff exponencial por ~15h, depois movido para DLQ; replay manual ADMIN, auditado | TRANSCRICAO | [09:17] Larissa; [09:18] Diego; [09:36] Sofia |
 | RFC-PROP-04 | `docs/RFC.md` | Decisão | HMAC-SHA256 do corpo em `X-Signature`; secret por endpoint, rotacionável com 24h de carência | TRANSCRICAO | [09:22] Sofia; [09:44] Diego |
 | RFC-PROP-05 | `docs/RFC.md` | Decisão | At-least-once; o cliente deduplica pelo `X-Event-Id` | TRANSCRICAO | [09:25] Diego; [09:26] Larissa |
-| RFC-PROP-06 | `docs/RFC.md` | Requisito Funcional | Operações de CRUD por customer, filtro de status, histórico de entregas, rotação de secret, replay administrativo | TRANSCRICAO | [09:21] Sofia; [09:31] Marcos; [09:33] Bruno; [09:34] Marcos; [09:36] Larissa |
+| RFC-PROP-06 | `docs/RFC.md` | Requisito Funcional | CRUD (incluindo desativar e reativar), filtro de status, histórico, rotação de secret, consulta e replay administrativos da DLQ | TRANSCRICAO | [09:21] Sofia; [09:31] Marcos; [09:33] Bruno; [09:34] Marcos; [09:36] Larissa |
 | RFC-PROP-07 | `docs/RFC.md` | Decisão | Módulo `src/modules/webhooks` (novo) no padrão do projeto; erros com prefixo `WEBHOOK_`; Pino; `requireRole`; PrismaClient próprio no worker | TRANSCRICAO | [09:27] Bruno; [09:29] Larissa; [09:30] Larissa; [09:30] Bruno |
 | RFC-ALT-01 | `docs/RFC.md` | Alternativa Descartada | Disparo síncrono no `changeStatus`: acopla a mudança de status ao cliente | TRANSCRICAO | [09:03] Larissa; [09:04] Bruno; [09:06] Diego |
 | RFC-ALT-02 | `docs/RFC.md` | Alternativa Descartada | Redis Streams: "subir mais infra", overengineering para um time pequeno | TRANSCRICAO | [09:07] Larissa; [09:07] Diego |
@@ -144,7 +144,7 @@ Este tracker liga cada item registrado nos documentos do pacote à sua origem: u
 | RFC-OQ-01 | `docs/RFC.md` | Questão em Aberto | Rate limiting: observar e implementar "se virar problema" | TRANSCRICAO | [09:38] Diego; [09:39] Diego; [09:39] Larissa |
 | RFC-OQ-02 | `docs/RFC.md` | Questão em Aberto | Escala do worker: particionar por `order_id` ou lock pessimista | TRANSCRICAO | [09:13] Bruno; [09:13] Diego |
 | RFC-OQ-03 | `docs/RFC.md` | Questão em Aberto | Endurecer as permissões do CRUD; `customerId` no body ou no path | TRANSCRICAO | [09:32] Larissa; [09:37] Sofia |
-| RFC-OQ-04 | `docs/RFC.md` | Questão em Aberto | Itens derivados para a revisão de segurança (HMAC e geração de secret), incluindo restrição de destinos (SSRF) | TRANSCRICAO | [09:46] Sofia |
+| RFC-OQ-04 | `docs/RFC.md` | Questão em Aberto | Itens derivados para a revisão de segurança (HMAC e geração de secret), incluindo SSRF (e) e rotação de emergência (f) | TRANSCRICAO | [09:46] Sofia |
 | RFC-OQ-05 | `docs/RFC.md` | Questão em Aberto | E-mail fora desta fase; próxima fase condicionada à medição de impacto | TRANSCRICAO | [09:37] Marcos; [09:37] Larissa; [09:38] Marcos |
 | RFC-OQ-06 | `docs/RFC.md` | Questão em Aberto | Arquivamento das linhas entregues da outbox (~30 dias), fora desta feature | TRANSCRICAO | [09:08] Diego |
 | RFC-IMP-01 | `docs/RFC.md` | Restrição | Nova chamada em `changeStatus`, novas tabelas por migration; `PATCH /orders/:id/status` falha se a outbox falhar | CODIGO | `src/modules/orders/order.service.ts` |
@@ -237,7 +237,7 @@ Este tracker liga cada item registrado nos documentos do pacote à sua origem: u
 | FDD-INT-16 | `docs/FDD.md` | Padrão Existente | `delete` físico de customer; cascata para os endpoints; eventos sobrevivem | CODIGO | `src/modules/customers/customer.service.ts` |
 | FDD-INT-17 | `docs/FDD.md` | Padrão Existente | `X-Request-Id` vem do cliente sem validação; é saneado antes de gravar | CODIGO | `src/middlewares/request-logger.middleware.ts` |
 | FDD-DEP-01 | `docs/FDD.md` | Dependência | Node ≥ 20: https.request com lookup, dns, net, AbortSignal.timeout, crypto | CODIGO | `package.json` |
-| FDD-DEP-02 | `docs/FDD.md` | Dependência | MySQL 8 (ROW_NUMBER, UTC_TIMESTAMP, MediumText) e Prisma 5; nenhum serviço novo | CODIGO | `docker-compose.yml` |
+| FDD-DEP-02 | `docs/FDD.md` | Dependência | MySQL 8 (UTC_TIMESTAMP, MediumText, INSERT IGNORE) e Prisma 5; nenhum serviço novo | CODIGO | `docker-compose.yml` |
 | FDD-DEP-03 | `docs/FDD.md` | Dependência | Revisão de segurança ≥ 2 dias úteis; pauta do RFC-OQ-04 (e) mais a rotação de emergência | TRANSCRICAO | [09:46] Sofia |
 | FDD-DEP-04 | `docs/FDD.md` | Dependência | Clientes: https, validação da assinatura, deduplicação; portal | TRANSCRICAO | [09:26] Marcos; [09:40] Marcos |
 | FDD-DEP-05 | `docs/FDD.md` | Restrição | Contratos existentes inalterados; PATCH de status pode retornar `WEBHOOK_PUBLISH_FAILED` | TRANSCRICAO | [09:40] Bruno |
@@ -322,7 +322,7 @@ Este tracker liga cada item registrado nos documentos do pacote à sua origem: u
 | PRD-FR-08 | `docs/PRD.md` | Requisito Funcional | Identificador único estável e cadastro de origem | TRANSCRICAO | [09:25] Diego; [09:44] Sofia |
 | PRD-FR-09 | `docs/PRD.md` | Requisito Funcional | Dados essenciais da mudança, sem itens | TRANSCRICAO | [09:43] Diego |
 | PRD-FR-10 | `docs/PRD.md` | Requisito Funcional | Resposta em até 10s; retentativas por ~15h; sucesso = 2xx (AMB-17) | TRANSCRICAO | [09:15] Diego; [09:17] Diego; [09:42] Diego |
-| PRD-FR-11 | `docs/PRD.md` | Requisito Funcional | Fila de falhas com reprocessamento manual por ADMIN, auditado | TRANSCRICAO | [09:18] Diego; [09:36] Sofia |
+| PRD-FR-11 | `docs/PRD.md` | Requisito Funcional | Fila de falhas com consulta (proposta) e reprocessamento por ADMIN, auditado; exceto acima de 64KB e endereço removido ou inativo | TRANSCRICAO | [09:18] Diego; [09:36] Sofia |
 | PRD-FR-12 | `docs/PRD.md` | Requisito Funcional | Últimos 100 envios por endereço (AMB-24, AMB-05) | TRANSCRICAO | [09:34] Marcos |
 | PRD-NFR-01 | `docs/PRD.md` | Requisito Não Funcional | Primeiro envio em menos de 10s | TRANSCRICAO | [09:02] Marcos; [09:10] Larissa |
 | PRD-NFR-02 | `docs/PRD.md` | Requisito Não Funcional | Cliente nunca trava nem desfaz mudança de status | TRANSCRICAO | [09:04] Bruno |
@@ -350,3 +350,5 @@ Este tracker liga cada item registrado nos documentos do pacote à sua origem: u
 | PRD-AC-12 | `docs/PRD.md` | Requisito Não Funcional | Falha no registro do aviso impede a mudança de status | TRANSCRICAO | [09:40] Bruno |
 | PRD-AC-13 | `docs/PRD.md` | Requisito Não Funcional | Mudanças seguidas chegam em ordem no primeiro envio | TRANSCRICAO | [09:12] Diego |
 | PRD-AC-14 | `docs/PRD.md` | Restrição | Acima de 64KB não é enviado e aparece como erro no histórico | TRANSCRICAO | [09:24] Larissa |
+| RFC-RISK-07 | `docs/RFC.md` | Risco | Cadastro inativo não gera evento; pendentes pausados por até 24h (proposta do FDD) | TRANSCRICAO | [09:21] Bruno; [09:16] Diego |
+| PRD-OOS-08 | `docs/PRD.md` | Fora de Escopo | Outros tipos de evento além de `order.status_changed` (AMB-11) | TRANSCRICAO | [09:43] Diego |
