@@ -289,3 +289,64 @@ Este tracker liga cada item registrado nos documentos do pacote à sua origem: u
 | FDD-AC-30 | `docs/FDD.md` | Requisito Não Funcional | Endpoint sem resposta libera a vaga na 1ª falha; os outros endpoints seguem atendidos | TRANSCRICAO | [09:38] Diego; [09:42] Diego |
 | FDD-RISK-14 | `docs/FDD.md` | Risco | Pool de conexões do worker esgotado faz o lease se perder | CODIGO | `src/config/database.ts` |
 | FDD-RISK-15 | `docs/FDD.md` | Risco | Custo da seleção cresce com o backlog; seleção em duas etapas usando só índice | TRANSCRICAO | [09:08] Diego |
+| PRD-CEN-01 | `docs/PRD.md` | Requisito Funcional | Cliente assina só "enviado" e "entregue" e recebe aviso nessas mudanças | TRANSCRICAO | [09:33] Marcos |
+| PRD-CEN-02 | `docs/PRD.md` | Requisito Não Funcional | Cliente fora por 2h recebe os avisos na próxima tentativa agendada (retentativas por ~15h) | TRANSCRICAO | [09:16] Diego; [09:17] Diego |
+| PRD-CEN-03 | `docs/PRD.md` | Requisito Funcional | Troca planejada de secret com 24h para migrar | TRANSCRICAO | [09:21] Sofia |
+| PRD-CEN-04 | `docs/PRD.md` | Interpretação | Suspeita de vazamento: revogação imediata (proposta do FDD, pendente de avaliação de segurança) | TRANSCRICAO | [09:22] Diego |
+| PRD-CEN-05 | `docs/PRD.md` | Requisito Funcional | Cliente descarta duplicata pelo identificador único | TRANSCRICAO | [09:25] Diego |
+| PRD-CEN-06 | `docs/PRD.md` | Requisito Funcional | Cliente investiga pelo histórico dos últimos 100 envios | TRANSCRICAO | [09:34] Marcos |
+| PRD-CEN-07 | `docs/PRD.md` | Requisito Funcional | Administrador reprocessa aviso esgotado, com registro de autoria | TRANSCRICAO | [09:18] Diego; [09:36] Sofia |
+| PRD-CEN-08 | `docs/PRD.md` | Requisito Funcional | Cliente com vários cadastros identifica a origem de cada aviso | TRANSCRICAO | [09:44] Sofia |
+| PRD-CEN-09 | `docs/PRD.md` | Interpretação | Desativar: sem avisos novos; pendentes retidos até 24h e depois DLQ | TRANSCRICAO | [09:21] Bruno |
+| PRD-CEN-10 | `docs/PRD.md` | Dependência | Integração pelo portal, com "ao menos uma vez" e a limitação de ordem documentadas | TRANSCRICAO | [09:26] Marcos; [09:13] Larissa; [09:40] Marcos |
+| PRD-MET-01 | `docs/PRD.md` | Métrica | Início do 1º envio em menos de 10s (AMB-21); acompanhamento por p95 (proposta) | TRANSCRICAO | [09:02] Marcos; [09:10] Larissa |
+| PRD-MET-02 | `docs/PRD.md` | Métrica | Em produção até o fim de novembro (pedido da Atlas); 3 clientes integrados como proposta | TRANSCRICAO | [09:45] Marcos |
+| PRD-MET-03 | `docs/PRD.md` | Métrica | 0 mudanças sem o aviso devido (endereço ativo e inscrito) | TRANSCRICAO | [09:40] Bruno; [09:41] Diego |
+| PRD-MET-04 | `docs/PRD.md` | Métrica | Janela de retentativas de ~15h (AMB-02) | TRANSCRICAO | [09:17] Diego; [09:17] Larissa |
+| PRD-MET-05 | `docs/PRD.md` | Métrica | Polling em GET /orders medido nos logs de requisição, com linha de base antes do lançamento | TRANSCRICAO | [09:00] Marcos |
+| PRD-MET-06 | `docs/PRD.md` | Métrica | Avisos na DLQ por cliente; uso como insumo é proposta | TRANSCRICAO | [09:37] Larissa |
+| PRD-OOS-01 | `docs/PRD.md` | Fora de Escopo | E-mail: talvez na próxima fase, depois de medir o impacto | TRANSCRICAO | [09:37] Marcos; [09:37] Larissa; [09:38] Marcos |
+| PRD-OOS-02 | `docs/PRD.md` | Fora de Escopo | Painel visual (projeto do frontend) | TRANSCRICAO | [09:39] Marcos; [09:40] Larissa |
+| PRD-OOS-03 | `docs/PRD.md` | Fora de Escopo | Webhooks de entrada | TRANSCRICAO | [09:02] Sofia; [09:02] Marcos |
+| PRD-OOS-04 | `docs/PRD.md` | Fora de Escopo | Arquivamento das linhas entregues da fila interna | TRANSCRICAO | [09:08] Diego |
+| PRD-OOS-05 | `docs/PRD.md` | Fora de Escopo | Itens do pedido no aviso | TRANSCRICAO | [09:43] Diego |
+| PRD-OOS-06 | `docs/PRD.md` | Fora de Escopo | Ordem global e entrega exatamente uma vez | TRANSCRICAO | [09:13] Larissa; [09:14] Marcos; [09:25] Diego |
+| PRD-OOS-07 | `docs/PRD.md` | Fora de Escopo | Várias instâncias em paralelo | TRANSCRICAO | [09:13] Diego |
+| PRD-FR-01 | `docs/PRD.md` | Requisito Funcional | Aviso de saída a cada mudança de status | TRANSCRICAO | [09:00] Marcos; [09:02] Marcos |
+| PRD-FR-02 | `docs/PRD.md` | Requisito Funcional | Cadastro com endereço e status de interesse; secret gerada pela plataforma | TRANSCRICAO | [09:31] Marcos |
+| PRD-FR-03 | `docs/PRD.md` | Requisito Funcional | Editar, remover e listar; desativar e reativar (interpretação de "estado ativo") | TRANSCRICAO | [09:33] Bruno; [09:21] Bruno |
+| PRD-FR-04 | `docs/PRD.md` | Requisito Funcional | Somente os status escolhidos | TRANSCRICAO | [09:33] Marcos; [09:34] Bruno |
+| PRD-FR-05 | `docs/PRD.md` | Requisito Funcional | Somente https | TRANSCRICAO | [09:23] Sofia |
+| PRD-FR-06 | `docs/PRD.md` | Requisito Funcional | Aviso assinado com a secret do endereço | TRANSCRICAO | [09:19] Sofia; [09:20] Sofia |
+| PRD-FR-07 | `docs/PRD.md` | Requisito Funcional | Troca de secret com carência de 24h; nova troca bloqueada durante a carência (proposta) | TRANSCRICAO | [09:21] Sofia |
+| PRD-FR-08 | `docs/PRD.md` | Requisito Funcional | Identificador único estável e cadastro de origem | TRANSCRICAO | [09:25] Diego; [09:44] Sofia |
+| PRD-FR-09 | `docs/PRD.md` | Requisito Funcional | Dados essenciais da mudança, sem itens | TRANSCRICAO | [09:43] Diego |
+| PRD-FR-10 | `docs/PRD.md` | Requisito Funcional | Resposta em até 10s; retentativas por ~15h; sucesso = 2xx (AMB-17) | TRANSCRICAO | [09:15] Diego; [09:17] Diego; [09:42] Diego |
+| PRD-FR-11 | `docs/PRD.md` | Requisito Funcional | Fila de falhas com reprocessamento manual por ADMIN, auditado | TRANSCRICAO | [09:18] Diego; [09:36] Sofia |
+| PRD-FR-12 | `docs/PRD.md` | Requisito Funcional | Últimos 100 envios por endereço (AMB-24, AMB-05) | TRANSCRICAO | [09:34] Marcos |
+| PRD-NFR-01 | `docs/PRD.md` | Requisito Não Funcional | Primeiro envio em menos de 10s | TRANSCRICAO | [09:02] Marcos; [09:10] Larissa |
+| PRD-NFR-02 | `docs/PRD.md` | Requisito Não Funcional | Cliente nunca trava nem desfaz mudança de status | TRANSCRICAO | [09:04] Bruno |
+| PRD-NFR-03 | `docs/PRD.md` | Requisito Não Funcional | Status e aviso juntos para endereço ativo e inscrito; falha no registro desfaz a mudança | TRANSCRICAO | [09:40] Bruno; [09:41] Diego |
+| PRD-NFR-04 | `docs/PRD.md` | Requisito Não Funcional | Entrega ao menos uma vez (duplicatas) e ordem por pedido com uma instância; retentativas podem inverter (AMB-09) | TRANSCRICAO | [09:24] Diego; [09:25] Sofia; [09:12] Diego; [09:13] Larissa |
+| PRD-NFR-05 | `docs/PRD.md` | Requisito Não Funcional | https, secret por endereço, HMAC-SHA256 | TRANSCRICAO | [09:20] Sofia; [09:21] Sofia; [09:23] Sofia |
+| PRD-NFR-06 | `docs/PRD.md` | Restrição | Acima de 64KB é erro, não envio | TRANSCRICAO | [09:23] Sofia; [09:24] Larissa |
+| PRD-NFR-07 | `docs/PRD.md` | Restrição | Sem infraestrutura nova; só um processo de envio novo | TRANSCRICAO | [09:07] Diego; [09:11] Diego; [09:30] Larissa |
+| PRD-RISK-01 | `docs/PRD.md` | Risco | Atlas migra por atraso; estimativa baseada no escopo da reunião | TRANSCRICAO | [09:00] Marcos; [09:45] Marcos; [09:46] Larissa |
+| PRD-RISK-02 | `docs/PRD.md` | Risco | Impacto no cliente: assinatura não validada, duplicatas ou rajadas sem controle de volume | TRANSCRICAO | [09:25] Sofia; [09:26] Marcos; [09:38] Diego; [09:39] Larissa |
+| PRD-RISK-03 | `docs/PRD.md` | Risco | Vazamento de secret; carência para troca planejada; revogação imediata proposta | TRANSCRICAO | [09:21] Sofia; [09:22] Diego; [09:46] Sofia |
+| PRD-RISK-04 | `docs/PRD.md` | Risco | Cliente sem visibilidade de falhas e sem avisos durante a desativação | TRANSCRICAO | [09:37] Larissa; [09:21] Bruno; [09:16] Diego |
+| PRD-RISK-05 | `docs/PRD.md` | Risco | Permissões amplas expõem dados entre clientes; aceito "por enquanto" | TRANSCRICAO | [09:32] Larissa; [09:37] Sofia |
+| PRD-AC-01 | `docs/PRD.md` | Requisito Funcional | Aviso de "enviado" com horário de envio a menos de 10s da mudança | TRANSCRICAO | [09:02] Marcos; [09:33] Marcos |
+| PRD-AC-02 | `docs/PRD.md` | Requisito Funcional | Sem avisos de status não escolhidos nem de endereço desativado | TRANSCRICAO | [09:34] Bruno |
+| PRD-AC-03 | `docs/PRD.md` | Requisito Não Funcional | Cliente fora por 2h recebe nas tentativas seguintes, sem intervenção | TRANSCRICAO | [09:16] Diego |
+| PRD-AC-04 | `docs/PRD.md` | Requisito Não Funcional | Mudança de status conclui com cliente fora do ar ou lento | TRANSCRICAO | [09:04] Bruno |
+| PRD-AC-05 | `docs/PRD.md` | Requisito Funcional | Assinatura validável; secret anterior aceita por 24h | TRANSCRICAO | [09:20] Sofia; [09:21] Sofia |
+| PRD-AC-06 | `docs/PRD.md` | Requisito Funcional | Endereço sem https é recusado | TRANSCRICAO | [09:23] Sofia |
+| PRD-AC-07 | `docs/PRD.md` | Requisito Funcional | Duplicata identificável e origem do cadastro visível | TRANSCRICAO | [09:25] Diego; [09:44] Sofia |
+| PRD-AC-08 | `docs/PRD.md` | Requisito Funcional | Últimos 100 envios visíveis | TRANSCRICAO | [09:34] Marcos |
+| PRD-AC-09 | `docs/PRD.md` | Requisito Funcional | Reprocessamento só por ADMIN, com registro de autoria | TRANSCRICAO | [09:36] Sofia |
+| PRD-AC-10 | `docs/PRD.md` | Requisito Funcional | Conteúdo essencial, sem itens | TRANSCRICAO | [09:43] Diego |
+| PRD-AC-11 | `docs/PRD.md` | Requisito Funcional | Intervalos crescentes; após ~15h vai para a fila de falhas | TRANSCRICAO | [09:17] Diego; [09:18] Diego |
+| PRD-AC-12 | `docs/PRD.md` | Requisito Não Funcional | Falha no registro do aviso impede a mudança de status | TRANSCRICAO | [09:40] Bruno |
+| PRD-AC-13 | `docs/PRD.md` | Requisito Não Funcional | Mudanças seguidas chegam em ordem no primeiro envio | TRANSCRICAO | [09:12] Diego |
+| PRD-AC-14 | `docs/PRD.md` | Restrição | Acima de 64KB não é enviado e aparece como erro no histórico | TRANSCRICAO | [09:24] Larissa |

@@ -261,3 +261,53 @@ Regras:
 - Nada descartado vira requisito: sem e-mail, sem rate limiting, sem
   multi-worker, sem order.created, sem itens no payload.
 ```
+
+---
+
+## P-07: Geração do PRD
+
+- **Fase:** 4
+- **Ferramenta:** Claude Code, sessão principal (Opus 5.5)
+- **Objetivo:** escrever o documento de produto, o de altitude mais alta do pacote. Ele consolida o porquê e o quê, sem descer ao como.
+
+```text
+Escreva docs/PRD.md do Sistema de Webhooks de Notificação de Pedidos.
+Fontes: docs/processo/inventario.md (§1–§7 e §12 dependências), RFC, ADRs e FDD
+aprovados. O PRD é a ÚLTIMA camada a ser escrita: ele consolida, não decide nada
+novo, e não pode contradizer os outros documentos.
+
+Seções obrigatórias:
+1. Resumo e contexto
+2. Problema e motivação
+3. Público-alvo e cenários de uso
+4. Objetivos e métricas de sucesso: pelo menos 1 com meta quantitativa
+5. Escopo:
+   - incluso
+   - fora de escopo: >= 2 itens descartados ou adiados NA REUNIÃO
+6. Requisitos funcionais (>= 8)
+7. Requisitos não funcionais
+8. Decisões e trade-offs principais
+9. Dependências
+10. Riscos e mitigação: >= 2 riscos, com probabilidade, impacto e mitigação
+11. Critérios de aceitação
+12. Estratégia de testes e validação
+
+Regras de altitude (matriz de fronteira):
+- Linguagem de produto. Nada de paths HTTP, payload JSON, nomes de tabela,
+  códigos de erro, variáveis de ambiente ou algoritmos: isso fica no FDD.
+  Os requisitos descrevem capacidades.
+- As decisões aparecem como trade-off de produto em 1 linha, com link para o ADR.
+- Riscos são de produto e de negócio. Riscos técnicos ficam no FDD e no RFC.
+
+Regras de conteúdo:
+- IDs visíveis: PRD-FR-NN, PRD-NFR-NN, PRD-MET-NN, PRD-OOS-NN, PRD-RISK-NN,
+  PRD-AC-NN, PRD-CEN-NN.
+- Métricas só com números que vieram da reunião: < 10s, 3 clientes, fim de
+  novembro, ~15h, 64KB. Uma métrica sem meta definida na reunião vira
+  "indicador de acompanhamento", sem número inventado.
+- O rate limiting NÃO entra em "fora de escopo": ele está "em observação"
+  (RFC-OQ-01). O e-mail entra como "talvez próxima fase", não como compromisso.
+- Opiniões (ex.: "Stripe faz assim") são atribuídas a quem falou.
+- Probabilidade e impacto são julgamento do autor e devem ser declarados como tal.
+- Toda afirmação cita [hh:mm] Nome ou um documento do pacote.
+```
