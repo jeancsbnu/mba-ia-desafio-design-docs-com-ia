@@ -2,10 +2,12 @@
 
 | Campo | Valor |
 |---|---|
+| **Versão** | 1.1. A versão 1.0 (20/10/2026) foi alinhada ao modelo de FDD do curso, sem mudar decisões. |
+| **Data** | 26/10/2026 |
+| **Responsável** | Larissa (Tech Lead), que se comprometeu a abrir o documento de design da feature ([09:50] Larissa). *(Interpretação: o RFC e este FDD, juntos, cumprem esse compromisso.)* |
 | **Status** | Em revisão técnica pelo time (sessão com Bruno e Diego, [09:50] Larissa). O [RFC](RFC.md) ainda está em revisão e a revisão de segurança está pendente ([RFC-OQ-04](RFC.md#questões-em-aberto)). |
 | **Autoria** | @jeancsbnu, com apoio de IA |
 | **Base** | [RFC](RFC.md), [ADR-001 a ADR-007](adrs/README.md), [PRD](PRD.md), [`TRANSCRICAO.md`](../TRANSCRICAO.md) e o código do repositório |
-| **Data** | 20/10/2026 |
 
 **Legenda.** Cada afirmação deste documento traz uma marca de origem:
 
@@ -13,6 +15,7 @@
 - **(proposta)**: detalhe que a reunião não definiu, sempre com a justificativa ao lado.
 - *(interpretação, AMB-xx)*: leitura adotada para um ponto ambíguo da transcrição, registrada em [`docs/processo/inventario.md`](processo/inventario.md#8-ambiguidades-e-interpretações-adotadas).
 - **(novo)**: arquivo que ainda não existe no repositório.
+- *(avaliação do autor)*: julgamento do redator, como plano de contingência e prioridade de risco.
 
 **Relógio.** Toda comparação e todo agendamento de tempo feito pelo worker e pelos serviços usa o relógio do banco, `UTC_TIMESTAMP(3)` (proposta). Isso evita misturar o relógio do processo com o do MySQL. O Prisma grava `DateTime` em UTC.
 
@@ -45,6 +48,19 @@ Por isso a solução separa duas coisas ([ADR-001](adrs/ADR-001-outbox-no-mysql.
 - **registro transacional:** o evento entra numa outbox, dentro da mesma transação da mudança de status;
 - **envio assíncrono:** um worker separado lê a outbox e faz as chamadas.
 
+### Suposições e restrições
+
+| ID | Tipo | Item | Origem |
+|---|---|---|---|
+| FDD-SUP-01 | Suposição | Um único worker ativo dá conta do volume atual *(hipótese: a reunião não discutiu volume)*. Escalar para vários é "problema do futuro". | [09:13] Diego |
+| FDD-SUP-02 | Suposição | O volume lido a cada poll cabe num "batch pequeno". | [09:08] Diego |
+| FDD-SUP-03 | Suposição | O cliente expõe um endpoint https e responde dentro de 10s. | [09:23] Sofia, [09:42] Diego |
+| FDD-RST-01 | Restrição | Nenhuma infraestrutura nova. Nenhuma dependência npm nova é *(interpretação)* do "reuso máximo". | [09:29] Bruno, [09:30] Larissa |
+| FDD-RST-02 | Restrição | A integração com `changeStatus` é uma função que recebe o `tx`, sem repository injetado, e o construtor de `OrderService` não muda. A única outra mudança no método é o parâmetro opcional `requestId` (proposta, FDD-INT-02). | [09:41] Bruno, [09:41] Diego |
+| FDD-RST-03 | Restrição | Payload de até 64KB, tempo limite de 10s por envio e URL https. | [09:23] Sofia, [09:24] Larissa, [09:42] Diego |
+| FDD-RST-04 | Restrição | Ids em UUID, como no resto do projeto. | [09:51] Larissa |
+| FDD-RST-05 | Restrição | Prazo de 3 sprints, com a revisão de segurança no fim (plano na seção 14). | [09:47] Larissa |
+
 ## 2. Objetivos técnicos
 
 | ID | Objetivo | Medida | Origem |
@@ -75,7 +91,7 @@ Por isso a solução separa duas coisas ([ADR-001](adrs/ADR-001-outbox-no-mysql.
 | Item excluído | Origem |
 |---|---|
 | E-mail de aviso | [09:37] Larissa |
-| Dashboard | [09:40] Larissa |
+| Dashboard visual para o cliente | [09:40] Larissa |
 | Webhooks de entrada (inbound) | [09:02] Marcos |
 | Arquivamento de linhas entregues | [09:08] Diego |
 | Itens do pedido no payload | [09:43] Diego |
@@ -298,7 +314,7 @@ sequenceDiagram
   participant P as Poll (2s)
   participant T as Tarefa do endpoint
   participant DB as MySQL
-  H->>DB: UPDATE lease SET holderId=:me, expiresAt=UTC_TIMESTAMP(3)+TTL WHERE id=1 AND (holderId=:me OR holderId IS NULL OR expiresAt<UTC_TIMESTAMP(3))
+  H->>DB: renova o lease (UPDATE condicionado, item a)
   Note over H: falha, exceção ou expiração local → instância inativa
   P->>DB: devolve PROCESSING vencidos (ou DLQ no teto de reclaims)
   P->>DB: expira pausas longas (DLQ)
@@ -603,7 +619,7 @@ O efeito colateral, explicado no contrato, é este: entregas assinadas com a sec
 
 | Campo | Quando vale | Efeito |
 |---|---|---|
-| `statuses` | Só para eventos futuros, porque o filtro é aplicado na inserção ([ADR-001](adrs/ADR-001-outbox-no-mysql.md)) | — |
+| `statuses` | Só para eventos futuros, porque o filtro é aplicado na inserção ([ADR-001](adrs/ADR-001-outbox-no-mysql.md)) | Os eventos já registrados não mudam |
 | `url` | Na hora do envio | Os eventos pendentes passam a ir para a URL nova |
 | `active: false` | Imediatamente | Só na transição de `true` para `false` (`updateMany … WHERE active = true`): grava `deactivatedAt` e marca `wasPaused` nos pendentes. Repetir `active: false` não altera `deactivatedAt` e não estende o prazo. Os pendentes ficam **pausados** por até 24h (`WEBHOOK_PAUSE_MAX_MS`) e depois vão para a DLQ. Mudanças de status ocorridas durante a inatividade **não geram eventos** (FLUXO-01 item 2). |
 | `active: true` | Imediatamente | Limpa `deactivatedAt` e retoma os pendentes que ainda não foram para a DLQ |
@@ -624,6 +640,8 @@ O efeito colateral, explicado no contrato, é este: entregas assinadas com a sec
 - **Paths novos.** Paths que não foram ditos na reunião estão marcados como (proposta).
 
 ### FDD-CONTRATO-01: `POST /api/v1/webhooks`
+
+**Tipo:** endpoint HTTP. **Método:** POST. **Rota:** `/api/v1/webhooks`. **Acesso:** qualquer usuário autenticado.
 
 Cadastra um webhook ([09:31] Marcos).
 
@@ -668,7 +686,7 @@ Content-Type: application/json
 
 | Status | Código | Quando |
 |---|---|---|
-| 201 | — | Webhook criado |
+| 201 | | Webhook criado |
 | 400 | `VALIDATION_ERROR` | Corpo inválido |
 | 401 | `UNAUTHORIZED` | Sem token válido |
 | 404 | `WEBHOOK_CUSTOMER_NOT_FOUND` | `customerId` não existe |
@@ -676,6 +694,8 @@ Content-Type: application/json
 A `secret` só aparece nesta resposta e na de rotação.
 
 ### FDD-CONTRATO-02: `GET /api/v1/webhooks?customerId=…`
+
+**Tipo:** endpoint HTTP. **Método:** GET. **Rota:** `/api/v1/webhooks?customerId=`. **Acesso:** qualquer usuário autenticado.
 
 Lista os webhooks de um customer ([09:33] Bruno), paginados com `paginated()` (`src/shared/http/response.ts`).
 
@@ -717,13 +737,15 @@ Content-Type: application/json
 
 | Status | Código | Quando |
 |---|---|---|
-| 200 | — | Lista retornada |
+| 200 | | Lista retornada |
 | 400 | `VALIDATION_ERROR` | Query inválida |
 | 401 | `UNAUTHORIZED` | Sem token válido |
 
 A listagem nunca traz a `secret` e não inclui cadastros removidos.
 
 ### FDD-CONTRATO-03: `PATCH /api/v1/webhooks/:id`
+
+**Tipo:** endpoint HTTP. **Método:** PATCH. **Rota:** `/api/v1/webhooks/:id`. **Acesso:** qualquer usuário autenticado.
 
 Edita um cadastro ([09:33] Bruno). Todos os campos são opcionais, mas é preciso enviar pelo menos um.
 
@@ -763,7 +785,7 @@ Content-Type: application/json
 
 | Status | Código | Quando |
 |---|---|---|
-| 200 | — | Cadastro atualizado |
+| 200 | | Cadastro atualizado |
 | 400 | `VALIDATION_ERROR` | Corpo ou `:id` inválido |
 | 401 | `UNAUTHORIZED` | Sem token válido |
 | 404 | `WEBHOOK_NOT_FOUND` | Cadastro inexistente ou removido |
@@ -778,6 +800,8 @@ Content-Type: application/json
 - `active: true` retoma os pendentes.
 
 ### FDD-CONTRATO-04: `DELETE /api/v1/webhooks/:id`
+
+**Tipo:** endpoint HTTP. **Método:** DELETE. **Rota:** `/api/v1/webhooks/:id`. **Acesso:** qualquer usuário autenticado.
 
 Remove um cadastro ([09:33] Bruno).
 
@@ -794,7 +818,7 @@ HTTP/1.1 204 No Content
 
 | Status | Código | Quando |
 |---|---|---|
-| 204 | — | Cadastro removido |
+| 204 | | Cadastro removido |
 | 400 | `VALIDATION_ERROR` | `:id` inválido |
 | 401 | `UNAUTHORIZED` | Sem token válido |
 | 404 | `WEBHOOK_NOT_FOUND` | Cadastro inexistente ou já removido |
@@ -802,6 +826,8 @@ HTTP/1.1 204 No Content
 A remoção é lógica (proposta). Os eventos pendentes vão para a DLQ com `WEBHOOK_ENDPOINT_UNAVAILABLE`.
 
 ### FDD-CONTRATO-05: `POST /api/v1/webhooks/:id/rotate-secret`
+
+**Tipo:** endpoint HTTP. **Método:** POST. **Rota:** `/api/v1/webhooks/:id/rotate-secret`. **Acesso:** qualquer usuário autenticado.
 
 Rotaciona a secret ([09:21] Sofia). O path é *(interpretação, AMB-06)*.
 
@@ -830,7 +856,7 @@ Content-Type: application/json
 
 | Status | Código | Quando |
 |---|---|---|
-| 200 | — | Secret rotacionada |
+| 200 | | Secret rotacionada |
 | 400 | `VALIDATION_ERROR` | `:id` ou corpo inválido |
 | 401 | `UNAUTHORIZED` | Sem token válido |
 | 404 | `WEBHOOK_NOT_FOUND` | Cadastro inexistente ou removido |
@@ -839,6 +865,8 @@ Content-Type: application/json
 Até `previousSecretExpiresAt`, os envios levam duas assinaturas (CONTRATO-09).
 
 ### FDD-CONTRATO-06: `GET /api/v1/webhooks/:id/deliveries`
+
+**Tipo:** endpoint HTTP. **Método:** GET. **Rota:** `/api/v1/webhooks/:id/deliveries`. **Acesso:** qualquer usuário autenticado.
 
 Retorna os últimos 100 envios ([09:34] Marcos), contados **por webhook** *(interpretação, AMB-24)*.
 
@@ -891,7 +919,7 @@ Content-Type: application/json
 
 | Status | Código | Quando |
 |---|---|---|
-| 200 | — | Histórico retornado, inclusive para cadastro **removido** |
+| 200 | | Histórico retornado, inclusive para cadastro **removido** |
 | 400 | `VALIDATION_ERROR` | `:id` ou query inválido |
 | 401 | `UNAUTHORIZED` | Sem token válido |
 | 404 | `WEBHOOK_NOT_FOUND` | Cadastro inexistente |
@@ -907,6 +935,8 @@ Content-Type: application/json
   4. **14:22:19.402:** 2º envio, no poll seguinte.
 
 ### FDD-CONTRATO-07: `POST /api/v1/admin/webhooks/dead-letter/:id/replay`
+
+**Tipo:** endpoint HTTP. **Método:** POST. **Rota:** `/api/v1/admin/webhooks/dead-letter/:id/replay`. **Acesso:** papel ADMIN.
 
 Reprocessa um evento que está na DLQ ([09:18] Diego, [09:35] Diego). Exige papel ADMIN ([09:36] Larissa).
 
@@ -935,7 +965,7 @@ Content-Type: application/json
 
 | Status | Código | Quando |
 |---|---|---|
-| 202 | — | Evento reenfileirado. A entrega acontece depois, de forma assíncrona (proposta). |
+| 202 | | Evento reenfileirado. A entrega acontece depois, de forma assíncrona (proposta). |
 | 400 | `VALIDATION_ERROR` | `:id` inválido |
 | 401 | `UNAUTHORIZED` | Sem token válido |
 | 403 | `FORBIDDEN` | Usuário sem papel ADMIN (`requireRole`) |
@@ -945,6 +975,8 @@ Content-Type: application/json
 | 422 | `WEBHOOK_PAYLOAD_TOO_LARGE` | O corpo é imutável e falharia de novo |
 
 ### FDD-CONTRATO-08: `GET /api/v1/admin/webhooks/dead-letter` (proposta)
+
+**Tipo:** endpoint HTTP. **Método:** GET. **Rota:** `/api/v1/admin/webhooks/dead-letter`. **Acesso:** papel ADMIN.
 
 A reunião definiu só o replay, que exige o `:id` do item da DLQ ([ADR-003](adrs/ADR-003-retry-backoff-e-dlq.md), `ADR-003-CON-03`). Esta listagem, restrita a ADMIN, permite encontrar esse id.
 
@@ -988,7 +1020,7 @@ Content-Type: application/json
 
 | Status | Código | Quando |
 |---|---|---|
-| 200 | — | Lista retornada |
+| 200 | | Lista retornada |
 | 400 | `VALIDATION_ERROR` | Query inválida |
 | 401 | `UNAUTHORIZED` | Sem token válido |
 | 403 | `FORBIDDEN` | Usuário sem papel ADMIN |
@@ -996,6 +1028,8 @@ Content-Type: application/json
 A listagem inclui itens de cadastros removidos.
 
 ### FDD-CONTRATO-09: Contrato de saída (POST ao endpoint do cliente)
+
+**Tipo:** chamada HTTP de saída (webhook). **Método:** POST. **Rota:** a URL https cadastrada pelo cliente. **Acesso:** autenticado pela assinatura `X-Signature`.
 
 O exemplo é o 1º envio do evento `7c9e…`: o pedido `ORD-000123` passou de `PAID` para `PROCESSING`, e o webhook `3f2a…` está inscrito em `PROCESSING` (CONTRATO-01).
 
@@ -1050,6 +1084,29 @@ O payload não traz itens. Para obtê-los, o cliente consulta `GET /orders/:id` 
 
 - deduplicar por `X-Event-Id` ([09:25] Diego);
 - validar `X-Signature` sobre o **corpo bruto**, antes do parse.
+
+### FDD-CONTRATO-10: função `publishWebhookEvent`
+
+**Tipo:** função interna (TypeScript). **Chamador:** `OrderService.changeStatus`, dentro da transação (FDD-INT-01). **Exportada por:** o módulo `src/modules/webhooks/` (novo). O nome do arquivo fica para a implementação.
+
+```ts
+publishWebhookEvent(
+  tx: Prisma.TransactionClient,          // o mesmo tx de changeStatus ([09:41] Bruno)
+  order: Order,                          // pedido já carregado pela transação
+  fromStatus: OrderStatus,
+  toStatus: OrderStatus,
+  opts?: { correlationId?: string | null }, // 5º argumento (proposta, FLUXO-01 item 5)
+): Promise<void>
+```
+
+**Semântica:**
+
+- **Assinatura de [09:41] Bruno:** os quatro primeiros argumentos. O `tx` é o client da transação, e não um repository injetado ([09:41] Diego, `ADR-006-ALT-01`).
+- **Efeito:** insere uma linha `PENDING` em `webhook_outbox` para cada endpoint ativo, não removido e inscrito em `toStatus` *(interpretação, AMB-04)*. Sem endpoint inscrito, não grava nada ([09:34] Bruno).
+- **Payload:** snapshot no formato do CONTRATO-09, montado a partir do `order` recebido ([09:52] Larissa).
+- **Não faz:** nenhuma chamada HTTP e nenhum envio. Quem envia é o worker ([09:04] Bruno).
+- **Erro:** qualquer falha vira `WEBHOOK_PUBLISH_FAILED` (FDD-ERR-10), depois do log da causa. Como a exceção sobe dentro de `$transaction`, a mudança de status é desfeita ([09:40] Bruno).
+- **Não é função pura:** ela grava no banco pelo `tx` (regra 8 de redação, [inventário](processo/inventario.md#13-regras-de-redação-valem-para-todos-os-documentos)).
 
 ---
 
@@ -1114,6 +1171,28 @@ Não viram resposta HTTP. Ficam registrados em `webhook_deliveries.errorCode`, e
 | FDD-RES-13 | Leitura limitada da resposta (proposta) | O corpo da resposta do cliente é lido até 2KB e o restante é descartado. | [09:34] Marcos |
 | FDD-RES-14 | Nenhuma linha órfã de tratamento (proposta) | Um `try/catch` total por evento converte qualquer exceção em tentativa com falha (`WEBHOOK_DELIVERY_INTERNAL_ERROR`). | AMB-20 |
 
+### Política de fallback
+
+Não há canal alternativo nesta fase (FDD-RES-05). Quando algo falha, a política é reter, registrar e devolver a decisão a uma pessoa:
+
+- **FDD-FALL-01 Cliente fora do ar:** o evento fica na outbox e é retentado. Esgotadas as tentativas, vai para a DLQ, de onde um ADMIN o reprocessa ([09:18] Diego).
+- **FDD-FALL-02 Worker parado:** os eventos se acumulam na outbox e saem quando ele volta ([09:06] Diego).
+- **FDD-FALL-03 Falha ao registrar o evento:** a mudança de status também falha. É uma política fail-closed, para que nunca haja status alterado sem evento ([09:40] Bruno).
+- **FDD-FALL-04 Cadastro inativo:** os pendentes ficam pausados por até 24h e depois vão para a DLQ (proposta, FDD-RES-12).
+
+### Invariantes
+
+| ID | Invariante | Onde é garantida |
+|---|---|---|
+| FDD-INV-01 | Nenhum status alterado sem evento para cada endpoint ativo inscrito, e nenhum evento sem status alterado ([09:41] Diego) | FLUXO-01, FDD-AC-03 |
+| FDD-INV-02 | O `eventId` de um evento é o mesmo em todas as tentativas e no replay ([09:25] Diego; *AMB-19*) | FLUXO-04, FLUXO-06 |
+| FDD-INV-03 | Em cada ciclo, um evento está ou na outbox ou na DLQ, nunca nos dois. Ao esgotar, ele é movido *(interpretação, AMB-13)*. No replay, a linha da DLQ fica marcada como reprocessada, e só a outbox volta a enviar. | FLUXO-05, FLUXO-06 |
+| FDD-INV-04 | No máximo uma instância do worker reserva linhas ([09:12] Diego) | FDD-RES-08, FDD-AC-14 |
+| FDD-INV-05 | No máximo um envio em curso por endpoint, o que preserva a ordem por pedido (proposta) | FDD-RES-06, FDD-AC-16, FDD-AC-28 |
+| FDD-INV-06 | O payload não muda depois da inserção ([09:52] Diego) | FDD-MOD-02, FDD-AC-18 |
+| FDD-INV-07 | Todo evento termina entregue ou na DLQ. Nenhum fica pendente para sempre ([09:15] Diego) | FDD-OBJ-04, FDD-RES-07, FDD-RES-12 |
+| FDD-INV-08 | A secret não aparece em log nem em resposta, fora da criação e da rotação (proposta) | FDD-OBS-02, FDD-AC-11 |
+
 ---
 
 ## 9. Observabilidade
@@ -1146,7 +1225,7 @@ O `redactPaths` de `src/shared/logger/index.ts` ganha quatro entradas:
 - `secret` e `previousSecret`, na raiz do objeto logado;
 - `*.secret` e `*.previousSecret`, um nível abaixo.
 
-Nenhum log inclui `X-Signature`. A medida responde ao histórico de vazamento de secret em log citado por Diego ([09:22] Diego).
+Nenhum log inclui `X-Signature`. A medida é preventiva: Diego relatou um cliente que vazou a secret no log da própria aplicação ([09:22] Diego).
 
 ### FDD-OBS-03: Métricas derivadas (proposta)
 
@@ -1170,6 +1249,20 @@ Sem biblioteca de tracing, o rastreamento é feito por **ids propagados**:
 4. O cliente recebe o `X-Event-Id`.
 
 Com isso, um mesmo par de ids liga a requisição, a outbox, cada tentativa, a DLQ e o que o cliente recebeu.
+
+### FDD-OBS-05: Alertas e consultas de acompanhamento (proposta)
+
+Corresponde ao item "Dashboards e alertas" do modelo do curso, mas sem painel novo: o painel visual para o cliente está fora de escopo ([09:40] Larissa), e o projeto não tem ferramenta de painel nem de alerta. A fonte são as consultas da OBS-03 e os logs da OBS-01. A ferramenta que dispara os alertas não foi discutida e fica para a revisão técnica ([09:50] Larissa).
+
+| Alerta | Condição | Ação esperada |
+|---|---|---|
+| Worker parado ou saturado | Linha elegível mais antiga com mais de 30s (backlog efetivo) | Verificar o processo e o lease |
+| Nenhuma instância ativa | Lease expirado há mais que o TTL, ou log `webhook_worker_lease_lost` sem `webhook_worker_started` em seguida | Subir uma instância |
+| Atraso acima da meta | p95 do atraso do 1º envio acima de 10s ([09:02] Marcos) | Ver saturação e tempo de resposta dos clientes |
+| Entrada nova na DLQ | Item com `replayedAt IS NULL` criado desde a última verificação | ADMIN analisa e decide o replay ([09:36] Sofia) |
+| Saturação persistente | `freeSlots = 0` em polls seguidos | Revisar `WEBHOOK_CONCURRENCY` ou pausar o endpoint lento |
+
+O acompanhamento mínimo é rodar essas cinco consultas e a da taxa de sucesso por webhook. O esforço entra no bloco 2 do plano (seção 14), a confirmar na revisão técnica.
 
 ---
 
@@ -1196,19 +1289,21 @@ Os números de linha referem-se ao estado atual do repositório.
 | FDD-INT-15 | `tests/setup.ts` e `tests/helpers/factories.ts` | No `beforeEach`, apagar `webhookDelivery`, `webhookDeadLetter`, `webhookOutbox` e `webhookEndpoint` e resetar `webhookWorkerLease`, tudo antes de `customer`. Criar a factory `createTestWebhook`. Criar `tests/webhooks.test.ts` (novo), que faz `await runPollOnce()` e `drain()` contra um servidor **HTTPS** local. O certificado é autoassinado e a CA vem por `NODE_EXTRA_CA_CERTS`, definida no script npm de teste. O teste roda com `WEBHOOK_ALLOW_PRIVATE_DESTINATIONS=true` e cadastra endpoints pela factory, sem passar pelo Zod. |
 | FDD-INT-16 | `src/modules/customers/customer.service.ts` | O `delete` é físico. A cascata de customer para endpoint evita uma falha nova, e os eventos pendentes sobrevivem e vão para a DLQ. |
 | FDD-INT-17 | `src/middlewares/request-logger.middleware.ts` | Fonte do `X-Request-Id`, que vem do cliente sem validação. Por isso o valor é saneado antes de ser gravado (FLUXO-01). Sem alteração neste arquivo. |
+| FDD-INT-18 | `src/modules/orders/order.status.ts` | Máquina de estados do pedido. `changeStatus` valida a transição com `canTransition` **antes** de chamar `publishWebhookEvent`, então só transições válidas geram evento. Nenhuma transição tem `PENDING` como destino, o que sustenta a recusa de `PENDING` em `statuses` (proposta, CONTRATO-01). Os terminais `DELIVERED` e `CANCELLED` não geram eventos depois de alcançados. Sem alteração neste arquivo. |
 
 ---
 
 ## 11. Dependências e compatibilidade
 
-| ID | Dependência | Situação |
-|---|---|---|
-| FDD-DEP-01 | Node.js ≥ 20 (`engines` em `package.json`) | `node:https` (com `lookup` próprio), `node:dns`, `node:net`, `AbortSignal.timeout` e `node:crypto`. Nenhuma dependência npm nova. |
-| FDD-DEP-02 | MySQL 8 (`docker-compose.yml`, `mysql:8.0`) e Prisma 5 | Suporta `UTC_TIMESTAMP(3)`, `INTERVAL … MICROSECOND`, `MediumText`, `Json` e `INSERT IGNORE`. Nenhum serviço novo, sem Redis ([09:07] Diego). |
-| FDD-DEP-03 | Revisão de segurança | Pelo menos 2 dias úteis antes do deploy, cobrindo HMAC e geração de secret ([09:46] Sofia). Inclui a pauta de [RFC-OQ-04](RFC.md#questões-em-aberto), cujo item (e) trata da restrição de destinos. Acrescenta a rotação de emergência proposta neste FDD (FLUXO-07). |
-| FDD-DEP-04 | Clientes | Endpoint https, validação da assinatura e deduplicação por `X-Event-Id`, tudo documentado no portal ([09:26] Marcos, [09:40] Marcos). |
-| FDD-DEP-05 | Compatibilidade da API | Nenhum contrato existente muda. Única mudança de comportamento: `PATCH /api/v1/orders/:id/status` pode responder `500 WEBHOOK_PUBLISH_FAILED`, e nesse caso o status **não** muda ([09:40] Bruno). |
-| FDD-DEP-06 | Implantação | A migration aditiva vem antes da nova API e do worker. Só uma instância do worker fica ativa; as demais ficam em standby ([09:11] Diego, [09:12] Diego). |
+| ID | Componente | Versão mínima | Observações |
+|---|---|---|---|
+| FDD-DEP-01 | Node.js | 20 (`engines` em `package.json`) | `node:https` (com `lookup` próprio), `node:dns`, `node:net`, `AbortSignal.timeout` e `node:crypto`. Nenhuma dependência npm nova. |
+| FDD-DEP-02 | MySQL e Prisma | MySQL 8.0 (`docker-compose.yml`) e Prisma 5.22.0 (`package.json`) | Suportam `UTC_TIMESTAMP(3)`, `INTERVAL … MICROSECOND`, `MediumText`, `Json` e `INSERT IGNORE`. Nenhum serviço novo, sem Redis ([09:07] Diego). |
+| FDD-DEP-03 | Revisão de segurança | Não se aplica | Pelo menos 2 dias úteis antes do deploy, cobrindo HMAC e geração de secret ([09:46] Sofia). Inclui a pauta de [RFC-OQ-04](RFC.md#questões-em-aberto), cujo item (e) trata da restrição de destinos. Acrescenta a rotação de emergência proposta neste FDD (FLUXO-07). |
+| FDD-DEP-04 | Clientes | Endpoint com TLS (https) | Validação da assinatura e deduplicação por `X-Event-Id`, tudo documentado no portal ([09:26] Marcos, [09:40] Marcos). |
+| FDD-DEP-05 | Compatibilidade da API | `/api/v1` | Nenhum contrato existente muda. Única mudança de comportamento: `PATCH /api/v1/orders/:id/status` pode responder `500 WEBHOOK_PUBLISH_FAILED`, e nesse caso o status **não** muda ([09:40] Bruno). |
+| FDD-DEP-06 | Implantação | Não se aplica | A migration aditiva vem antes da nova API e do worker. Só uma instância do worker fica ativa; as demais ficam em standby ([09:11] Diego, [09:12] Diego). |
+| FDD-DEP-07 | Bibliotecas reutilizadas | Express 4.21.1, Zod 3.23.8 e Pino 9.5.0 (`package.json`) | Mesmas versões de hoje. Reuso sem atualização ([09:30] Larissa). |
 
 ---
 
@@ -1257,20 +1352,66 @@ Todos os critérios são testes de integração no padrão supertest + MySQL rea
 
 ## 13. Riscos e mitigação
 
-| ID | Risco | Probabilidade | Impacto | Mitigação |
+| ID | Risco | Probabilidade | Impacto | Mitigação | Plano de contingência *(avaliação do autor)* |
+|---|---|---|---|---|---|
+| FDD-RISK-01 | Transação de `changeStatus` mais lenta, com a consulta de endpoints e N inserts ([09:04] Bruno) | Média | Médio | Índice em `webhook_endpoints.customerId`, payload enxuto ([09:43] Diego), filtro na inserção ([09:34] Bruno). Medir a duração de `PATCH /orders/:id/status` antes e depois da mudança. | Medir de novo depois de ajustar índices. Se a piora persistir, levar à revisão técnica antes do deploy. |
+| FDD-RISK-02 | Clientes lentos ocupam todas as vagas | Média | Alto | Uma tarefa por endpoint, drenagem que encerra na primeira falha e em `WEBHOOK_TASK_MAX_MS`, rodízio por último atendimento, `WEBHOOK_CONCURRENCY=10` (envio é I/O), tempo limite de 10s ([09:42] Diego) e métrica de saturação (OBS-03). Um circuit breaker por endpoint fica como evolução, se a métrica indicar necessidade. | Desativar o endpoint lento, que fica pausado por até 24h (RES-12), e aumentar `WEBHOOK_CONCURRENCY`. O circuit breaker entra se o problema voltar. |
+| FDD-RISK-03 | Linha presa, duplicata na recuperação ou evento que derruba o worker | Baixa | Médio | FDD-RES-07 e FDD-RES-14. Duplicatas são cobertas pela deduplicação por `X-Event-Id` ([09:25] Diego). O teto de `reclaims` evita loop eterno. | Reiniciar o worker: as linhas `PROCESSING` vencidas voltam à fila (RES-07), e as que atingirem o teto vão para a DLQ, de onde saem por replay. |
+| FDD-RISK-04 | Duas instâncias ativas, ou troca de instância, quebrando a ordem | Baixa | Médio | Lease com expiração local, claim com `lockedBy`, endpoint "ocupado" verificado no banco, gravações condicionadas (FDD-RES-08, AC-14, AC-26, AC-27) ([09:13] Larissa). Depois de um crash, os endpoints da instância anterior esperam até `WEBHOOK_STUCK_AFTER_MS`. | Parar todas as instâncias e subir uma só. A ordem por endpoint se recompõe a partir da outbox. |
+| FDD-RISK-05 | Secret recuperável no banco ou vazada em log | Média | Alto | Redact (OBS-02), secret por endpoint, rotação normal e de emergência, limpeza da secret expirada ([09:21] Sofia), revisão de segurança ([09:46] Sofia, RFC-OQ-04) | Rotação de emergência, se aprovada na revisão de segurança. Senão, remover o cadastro e criar outro, com secret nova. |
+| FDD-RISK-06 | `X-Timestamp` fora da assinatura não protege contra replay ([09:22] Sofia, [09:44] Diego) | Média | Médio | Deduplicação por `X-Event-Id`. Assinar o timestamp fica como decisão da revisão de segurança (`ADR-004-CON-03`). | Se a revisão de segurança exigir, assinar também o timestamp, com um período de transição combinado com os clientes pelo portal. |
+| FDD-RISK-07 | Bytes do payload alterados ou sem espaço na coluna | Baixa | Alto | `MediumText`, envio sem reserializar, limite aplicado pelo worker (MOD-02, RES-10) ([09:52] Larissa) | Um `INSERT` que falhe faz a mudança de status falhar com `WEBHOOK_PUBLISH_FAILED`, sem perda silenciosa. Corrigir a coluna por migration. |
+| FDD-RISK-08 | FKs novas quebram `DELETE /api/v1/customers/:id` ou apagam eventos | Média | Médio | Cascata só de customer para endpoint; sem FK na outbox, na DLQ e em deliveries; endpoint inexistente tratado (MOD-01, MOD-02, INT-16, AC-23) | Reverter a migration das FKs. As tabelas novas não alteram as existentes. |
+| FDD-RISK-09 | Tabelas crescem sem arquivamento ([09:08] Diego) | Alta | Baixo no curto prazo | Índices compostos e métrica de volume. A política fica em [RFC-OQ-06](RFC.md#questões-em-aberto). | Limpeza manual das linhas `DELIVERED` antigas da outbox, que não afeta `webhook_deliveries`, até a política de RFC-OQ-06 ser decidida. |
+| FDD-RISK-10 | Ordem por pedido invertida durante o backoff | Média | Baixo | Limitação documentada no portal. O cliente reconcilia por `from_status`, `to_status` e `timestamp` ([09:13] Larissa, [09:14] Marcos). | O cliente reconcilia consultando `GET /api/v1/orders/:id` ([09:43] Diego). |
+| FDD-RISK-11 | SSRF: qualquer usuário autenticado pode cadastrar URLs ([09:37] Sofia), e a resposta volta no histórico | Média | Alto | Validação de `localhost` e IP literal no cadastro. No envio, `lookup` que recusa destinos privados e fixa o IP (contra DNS rebinding), prazo único, leitura limitada a 2KB. Item levado à revisão de segurança (RFC-OQ-04). | Desativar ou remover o cadastro suspeito, revisar os destinos no histórico e antecipar o endurecimento das permissões (RFC-OQ-03). |
+| FDD-RISK-12 | `X-Request-Id` do cliente quebra a mudança de status | Baixa | Alto | Saneamento do `correlationId` (FLUXO-01 item 5, AC-20) | Deixar de passar o 5º argumento, que é opcional. A entrega não depende dele. |
+| FDD-RISK-13 | Eventos perdidos durante uma desativação, porque não são gerados enquanto o cadastro está inativo | Média | Médio | Comportamento documentado no CONTRATO-03 e no portal. Para manutenção curta do lado do cliente, a orientação é **não** desativar: o retry de ~15h cobre a indisponibilidade ([09:16] Diego). | O cliente reconcilia o período consultando os pedidos pela API. |
+| FDD-RISK-14 | Pool de conexões do worker esgotado: o heartbeat espera na fila e perde o lease sem falha real do banco | Média | Médio | `connection_limit` ≥ `WEBHOOK_CONCURRENCY + 4` na URL do worker, aviso no bootstrap (INT-11) e heartbeat com timeout curto ([09:30] Bruno) | Aumentar `connection_limit` e reiniciar o worker. A instância em standby assume se o lease expirar. |
+| FDD-RISK-15 | Custo da seleção cresce com o backlog num incidente de dias | Baixa | Médio | Seleção em duas etapas, só com colunas de índice e sem `payload` (FLUXO-02 passo 4). Se o backlog elegível passar de ~100 mil linhas, revisar a estratégia: por exemplo, uma tabela de endpoints com trabalho pendente ([09:08] Diego, "batch pequeno"). | Pausar os endpoints com maior backlog para reduzir a seleção e revisar a estratégia como descrito. |
+
+---
+
+## 14. Plano de implementação
+
+Larissa estimou o trabalho em blocos ([09:46] Larissa), somando "três sprints com a revisão da Sofia incluída no fim" ([09:47] Larissa). A ordem dos blocos é a da fala. O encaixe de cada item deste FDD nos blocos é *(proposta)*, porque a fala só nomeia os blocos e boa parte dos itens é proposta (seção 15).
+
+| ID | Bloco | Estimativa | O que entra |
+|---|---|---|---|
+| FDD-PLAN-01 | Modelagem de outbox e DLQ | 1 sprint | Modelo de dados (MOD-01 a MOD-05), migration aditiva (INT-14) e cascata de customer para endpoint (INT-16) |
+| FDD-PLAN-02 | Worker e retry | 1 sprint | `src/worker.ts` (novo), FLUXO-02 a FLUXO-05, estratégias de resiliência (seção 8), erros internos do worker (ERR-11 a ERR-18), logs, métricas e alertas (OBS-01, OBS-03 e OBS-05) e INT-11 a INT-13 |
+| FDD-PLAN-03 | CRUD de configuração e deliveries | Meio sprint | CONTRATO-01 a 04 e 06, FLUXO-08, replay e listagem da DLQ (FLUXO-06, CONTRATO-07 e 08), erros da API (ERR-01 a ERR-09), INT-03 a INT-05, INT-07 e INT-10 |
+| FDD-PLAN-04 | Integração no `order.service` e testes ponta a ponta | Meio sprint | FLUXO-01, CONTRATO-10, ERR-10, correlação (OBS-04), INT-01, INT-02, INT-08, INT-15, INT-17, INT-18 e os critérios da seção 12 |
+| FDD-PLAN-05 | HMAC, schemas, validações | "Mais um pouco" | Assinatura (CONTRATO-09), rotação (FLUXO-07, CONTRATO-05), schemas Zod (INT-06), redact de secrets (OBS-02, INT-09) e bloqueio de destinos privados (CONTRATO-01, FLUXO-03 item 4, ERR-17) |
+| FDD-PLAN-06 | Revisão de segurança | Pelo menos 2 dias úteis, no fim | HMAC e geração de secret ([09:46] Sofia), mais a pauta de RFC-OQ-04 e as propostas de segurança da seção 15 |
+
+Antes do primeiro bloco, Larissa, Bruno e Diego fazem a sessão de revisão do design ([09:50] Larissa).
+
+**Ponto de atenção** *(avaliação do autor)*. A estimativa cobre o escopo da reunião. As propostas da seção 15 acrescentam trabalho, sobretudo ao bloco 2 (lease, seleção justa, reclaims) e ao bloco 5 (bloqueio de destinos privados). A revisão técnica precisa confirmar se elas cabem nos 3 sprints ([PRD-RISK-01](PRD.md#prd-risk-01-a-atlas-migra-para-o-concorrente-por-atraso-na-entrega)).
+
+---
+
+## 15. Propostas além da reunião
+
+Principais propostas e interpretações deste FDD que a reunião não decidiu. Detalhes menores, como nomes de coluna, valores padrão de variáveis e paths novos, seguem marcados como (proposta) no ponto em que aparecem. Nada daqui é decisão: tudo passa pela revisão técnica ([09:50] Larissa) e, quando toca segurança, pela revisão de segurança ([09:46] Sofia).
+
+| ID | Proposta | Motivo | Onde está | Quem valida |
 |---|---|---|---|---|
-| FDD-RISK-01 | Transação de `changeStatus` mais lenta, com a consulta de endpoints e N inserts ([09:04] Bruno) | Média | Médio | Índice em `webhook_endpoints.customerId`, payload enxuto ([09:43] Diego), filtro na inserção ([09:34] Bruno). Medir a duração de `PATCH /orders/:id/status` antes e depois da mudança. |
-| FDD-RISK-02 | Clientes lentos ocupam todas as vagas | Média | Alto | Uma tarefa por endpoint, drenagem que encerra na primeira falha e em `WEBHOOK_TASK_MAX_MS`, rodízio por último atendimento, `WEBHOOK_CONCURRENCY=10` (envio é I/O), tempo limite de 10s ([09:42] Diego) e métrica de saturação (OBS-03). Um circuit breaker por endpoint fica como evolução, se a métrica indicar necessidade. |
-| FDD-RISK-03 | Linha presa, duplicata na recuperação ou evento que derruba o worker | Baixa | Médio | FDD-RES-07 e FDD-RES-14. Duplicatas são cobertas pela deduplicação por `X-Event-Id` ([09:25] Diego). O teto de `reclaims` evita loop eterno. |
-| FDD-RISK-04 | Duas instâncias ativas, ou troca de instância, quebrando a ordem | Baixa | Médio | Lease com expiração local, claim com `lockedBy`, endpoint "ocupado" verificado no banco, gravações condicionadas (FDD-RES-08, AC-14, AC-26, AC-27) ([09:13] Larissa). Depois de um crash, os endpoints da instância anterior esperam até `WEBHOOK_STUCK_AFTER_MS`. |
-| FDD-RISK-05 | Secret recuperável no banco ou vazada em log | Média | Alto | Redact (OBS-02), secret por endpoint, rotação normal e de emergência, limpeza da secret expirada ([09:21] Sofia), revisão de segurança ([09:46] Sofia, RFC-OQ-04) |
-| FDD-RISK-06 | `X-Timestamp` fora da assinatura não protege contra replay ([09:22] Sofia, [09:44] Diego) | Média | Médio | Deduplicação por `X-Event-Id`. Assinar o timestamp fica como decisão da revisão de segurança (`ADR-004-CON-03`). |
-| FDD-RISK-07 | Bytes do payload alterados ou sem espaço na coluna | Baixa | Alto | `MediumText`, envio sem reserializar, limite aplicado pelo worker (MOD-02, RES-10) ([09:52] Larissa) |
-| FDD-RISK-08 | FKs novas quebram `DELETE /api/v1/customers/:id` ou apagam eventos | Média | Médio | Cascata só de customer para endpoint; sem FK na outbox, na DLQ e em deliveries; endpoint inexistente tratado (MOD-01, MOD-02, INT-16, AC-23) |
-| FDD-RISK-09 | Tabelas crescem sem arquivamento ([09:08] Diego) | Alta | Baixo no curto prazo | Índices compostos e métrica de volume. A política fica em [RFC-OQ-06](RFC.md#questões-em-aberto). |
-| FDD-RISK-10 | Ordem por pedido invertida durante o backoff | Média | Baixo | Limitação documentada no portal. O cliente reconcilia por `from_status`, `to_status` e `timestamp` ([09:13] Larissa, [09:14] Marcos). |
-| FDD-RISK-11 | SSRF: qualquer usuário autenticado pode cadastrar URLs ([09:37] Sofia), e a resposta volta no histórico | Média | Alto | Validação de `localhost` e IP literal no cadastro. No envio, `lookup` que recusa destinos privados e fixa o IP (contra DNS rebinding), prazo único, leitura limitada a 2KB. Item levado à revisão de segurança (RFC-OQ-04). |
-| FDD-RISK-12 | `X-Request-Id` do cliente quebra a mudança de status | Baixa | Alto | Saneamento do `correlationId` (FLUXO-01 item 5, AC-20) |
-| FDD-RISK-13 | Eventos perdidos durante uma desativação, porque não são gerados enquanto o cadastro está inativo | Média | Médio | Comportamento documentado no CONTRATO-03 e no portal. Para manutenção curta do lado do cliente, a orientação é **não** desativar: o retry de ~15h cobre a indisponibilidade ([09:16] Diego). |
-| FDD-RISK-14 | Pool de conexões do worker esgotado: o heartbeat espera na fila e perde o lease sem falha real do banco | Média | Médio | `connection_limit` ≥ `WEBHOOK_CONCURRENCY + 4` na URL do worker, aviso no bootstrap (INT-11) e heartbeat com timeout curto ([09:30] Bruno) |
-| FDD-RISK-15 | Custo da seleção cresce com o backlog num incidente de dias | Baixa | Médio | Seleção em duas etapas, só com colunas de índice e sem `payload` (FLUXO-02 passo 4). Se o backlog elegível passar de ~100 mil linhas, revisar a estratégia: por exemplo, uma tabela de endpoints com trabalho pendente ([09:08] Diego, "batch pequeno"). |
+| FDD-PROP-01 | Bloqueio de destinos privados (SSRF): validação no cadastro e `lookup` que fixa o IP no envio | O CRUD está aberto a qualquer usuário autenticado ([09:37] Sofia), e a resposta do destino aparece no histórico | CONTRATO-01, FLUXO-03, ERR-17, RISK-11 | Segurança |
+| FDD-PROP-02 | Rotação de emergência (`revokePrevious`) | Um vazamento de secret já aconteceu ([09:22] Diego) | FLUXO-07, CONTRATO-05 | Segurança |
+| FDD-PROP-03 | Recusar com 409 uma nova rotação durante a carência | Evitar que um retry ou duplo clique invalide na hora a secret em uso | FLUXO-07, ERR-07 | Segurança |
+| FDD-PROP-04 | Pausa de até 24h para cadastro inativo, depois DLQ | Dar efeito ao "estado ativo" ([09:21] Bruno) sem reter eventos para sempre | FLUXO-08, RES-12 | Revisão técnica |
+| FDD-PROP-05 | Listagem da DLQ para ADMIN | O replay precisa do id do item ([09:18] Diego) | CONTRATO-08 | Revisão técnica |
+| FDD-PROP-06 | Recusar `PENDING` em `statuses` | `PENDING` nunca é destino de transição | CONTRATO-01, ERR-08, INT-18 | Revisão técnica |
+| FDD-PROP-07 | Lease de instância única e `claimId` por reserva | Garantir um único worker ([09:12] Diego) e a ordem na troca de instância | FLUXO-02, RES-08 | Revisão técnica |
+| FDD-PROP-08 | Seleção justa e uma tarefa por endpoint | Um cliente lento não atrasa os outros (`ADR-002-CON-02`) | FLUXO-02, RES-06 | Revisão técnica |
+| FDD-PROP-09 | Recuperação de linhas presas, com teto de `reclaims` | Worker que cai no meio de um envio não pode deixar linha presa | RES-07 | Revisão técnica |
+| FDD-PROP-10 | Resposta do cliente lida até 2KB | O histórico guarda a resposta ([09:34] Marcos) sem crescer sem limite | RES-13 | Revisão técnica |
+| FDD-PROP-11 | `X-Request-Id` saneado como `correlationId` | Um header não validado não pode derrubar a mudança de status ([09:04] Bruno) | FLUXO-01, RISK-12 | Revisão técnica |
+| FDD-PROP-12 | Redact de `secret` e `previousSecret` nos logs | [09:22] Diego relata secret vazada no log de um cliente; o redact evita o mesmo nos logs da plataforma | OBS-02, INT-09 | Segurança |
+| FDD-PROP-13 | Métricas, consultas de acompanhamento e alertas a partir de logs e SQL | A reunião só tratou de logs ([09:29] Bruno) | OBS-03 a OBS-05 | Revisão técnica |
+| FDD-PROP-14 | Nomes completos dos códigos `WEBHOOK_*`, exceto `WEBHOOK_NOT_FOUND` | Só o prefixo foi decidido ([09:29] Larissa) | Seção 7 | Revisão técnica |
+| FDD-PROP-15 | Duas assinaturas durante a carência da rotação *(interpretação, AMB-15)* | A secret anterior vale por 24h ([09:21] Sofia), e o cliente pode ainda não ter migrado | CONTRATO-09, FLUXO-07 | Segurança |
+| FDD-PROP-16 | Tabela `webhook_deliveries`, com uma linha por tentativa *(interpretação, AMB-05)* | O histórico pedido em [09:34] Marcos precisa da resposta e do tempo de cada envio | MOD-04, CONTRATO-06 | Revisão técnica |
+| FDD-PROP-17 | Remoção lógica do cadastro | O histórico de entregas continua consultável depois da remoção | CONTRATO-04, FLUXO-08 | Revisão técnica |
+| FDD-PROP-18 | Recusar o replay de evento acima de 64KB | O corpo não muda, então o envio falharia de novo ([09:24] Larissa) | FLUXO-06, ERR-06 | Revisão técnica |

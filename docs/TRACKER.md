@@ -6,7 +6,7 @@ Este tracker liga cada item registrado nos documentos do pacote à sua origem: u
 
 - **ID**: identificador que aparece no próprio documento. As convenções estão abaixo.
 - **Documento**: arquivo onde o item está.
-- **Tipo**: categoria do item. Valores usados: Requisito Funcional, Requisito Não Funcional, Decisão, Restrição, Alternativa Descartada, Trade-off, Risco, Interpretação, Dependência, Limitação, Fora de Escopo, Questão em Aberto, Métrica, Padrão Existente.
+- **Tipo**: categoria do item. Valores usados: Requisito Funcional, Requisito Não Funcional, Decisão, Restrição, Alternativa Descartada, Trade-off, Risco, Interpretação, Dependência, Limitação, Fora de Escopo, Questão em Aberto, Métrica, Padrão Existente, Problema, Suposição, Invariante, Plano, Proposta.
 - **Fonte**: `TRANSCRICAO` ou `CODIGO`.
 - **Localização**:
   - Para `TRANSCRICAO`: `[hh:mm] Nome`. Pode haver várias falas, separadas por `;`.
@@ -31,11 +31,22 @@ Este tracker liga cada item registrado nos documentos do pacote à sua origem: u
 | `FDD-RES-NN` | Estratégia de resiliência do FDD |
 | `FDD-OBS-NN` | Item de observabilidade do FDD |
 | `FDD-RISK-NN` | Risco do FDD |
+| `FDD-SUP-NN` | Suposição do FDD |
+| `FDD-RST-NN` | Restrição do FDD |
+| `FDD-INV-NN` | Invariante do FDD |
+| `FDD-PLAN-NN` | Bloco do plano de implementação do FDD |
+| `FDD-PROP-NN` | Proposta além da reunião (FDD) |
+| `FDD-FALL-NN` | Política de fallback do FDD |
 | `PRD-FR-NN` | Requisito funcional do PRD |
 | `PRD-NFR-NN` | Requisito não funcional do PRD |
 | `PRD-MET-NN` | Métrica do PRD |
 | `PRD-OOS-NN` | Item fora de escopo do PRD |
 | `PRD-RISK-NN` | Risco do PRD |
+| `PRD-PROB-NN` | Problema priorizado do PRD |
+| `PRD-DEC-NN` | Decisão e trade-off do PRD |
+| `PRD-DEP-NN` | Dependência do PRD |
+| `PRD-IMP-NN` | Onde a feature será implantada (PRD) |
+| `PRD-ARQ-NN` | Arquitetura e abordagem do PRD |
 
 **Verificação automática:** `node docs/processo/validar-entrega.mjs` confere quatro coisas. Cada `[hh:mm] Nome` existe literalmente na transcrição. Cada caminho de código existe no repositório. Os percentuais por fonte batem com o exigido. E a cobertura de IDs dos documentos chega a pelo menos 80%.
 
@@ -289,6 +300,54 @@ Este tracker liga cada item registrado nos documentos do pacote à sua origem: u
 | FDD-AC-30 | `docs/FDD.md` | Requisito Não Funcional | Endpoint sem resposta libera a vaga na 1ª falha; os outros endpoints seguem atendidos | TRANSCRICAO | [09:38] Diego; [09:42] Diego |
 | FDD-RISK-14 | `docs/FDD.md` | Risco | Pool de conexões do worker esgotado faz o lease se perder | CODIGO | `src/config/database.ts` |
 | FDD-RISK-15 | `docs/FDD.md` | Risco | Custo da seleção cresce com o backlog; seleção em duas etapas usando só índice | TRANSCRICAO | [09:08] Diego |
+| FDD-SUP-01 | `docs/FDD.md` | Suposição | Um único worker ativo atende o volume atual (hipótese: volume não discutido); escalar é "problema do futuro" | TRANSCRICAO | [09:13] Diego |
+| FDD-SUP-02 | `docs/FDD.md` | Suposição | O volume lido por poll cabe num "batch pequeno" | TRANSCRICAO | [09:08] Diego |
+| FDD-SUP-03 | `docs/FDD.md` | Suposição | O cliente tem endpoint https e responde dentro de 10s | TRANSCRICAO | [09:23] Sofia; [09:42] Diego |
+| FDD-RST-01 | `docs/FDD.md` | Restrição | Nenhuma infraestrutura nova; nenhuma dependência npm nova é interpretação do "reuso máximo" | TRANSCRICAO | [09:29] Bruno; [09:30] Larissa |
+| FDD-RST-02 | `docs/FDD.md` | Restrição | Integração por função que recebe o `tx`, sem repository injetado; construtor do `OrderService` intacto; `requestId` opcional é proposta (INT-02) | TRANSCRICAO | [09:41] Bruno; [09:41] Diego |
+| FDD-RST-03 | `docs/FDD.md` | Restrição | Payload de até 64KB, tempo limite de 10s e URL https | TRANSCRICAO | [09:23] Sofia; [09:24] Larissa; [09:42] Diego |
+| FDD-RST-04 | `docs/FDD.md` | Restrição | Ids em UUID, como no resto do projeto | TRANSCRICAO | [09:51] Larissa |
+| FDD-RST-05 | `docs/FDD.md` | Restrição | Prazo de 3 sprints com a revisão de segurança no fim | TRANSCRICAO | [09:47] Larissa |
+| FDD-CONTRATO-10 | `docs/FDD.md` | Decisão | Função `publishWebhookEvent(tx, order, fromStatus, toStatus)`, que grava na outbox pelo `tx`, sem HTTP; falha desfaz a mudança de status. O 5º argumento `opts` é proposta. | TRANSCRICAO | [09:41] Bruno; [09:41] Diego; [09:40] Bruno |
+| FDD-INV-01 | `docs/FDD.md` | Invariante | Nenhum status alterado sem evento para endpoint ativo inscrito, e nenhum evento sem status alterado | TRANSCRICAO | [09:40] Bruno; [09:41] Diego |
+| FDD-INV-02 | `docs/FDD.md` | Invariante | `eventId` igual em todas as tentativas e no replay (AMB-19) | TRANSCRICAO | [09:25] Diego |
+| FDD-INV-03 | `docs/FDD.md` | Invariante | Em cada ciclo, evento na outbox ou na DLQ, nunca nos dois; no replay, a linha da DLQ fica marcada (AMB-13) | TRANSCRICAO | [09:15] Diego; [09:18] Diego |
+| FDD-INV-04 | `docs/FDD.md` | Invariante | No máximo uma instância do worker reserva linhas | TRANSCRICAO | [09:12] Diego |
+| FDD-INV-05 | `docs/FDD.md` | Invariante | No máximo um envio em curso por endpoint, preservando a ordem por pedido (proposta) | TRANSCRICAO | [09:12] Diego |
+| FDD-INV-06 | `docs/FDD.md` | Invariante | Payload imutável depois da inserção | TRANSCRICAO | [09:52] Diego |
+| FDD-INV-07 | `docs/FDD.md` | Invariante | Todo evento termina entregue ou na DLQ; nenhum fica pendente para sempre | TRANSCRICAO | [09:15] Diego |
+| FDD-INV-08 | `docs/FDD.md` | Invariante | Secret fora de logs e de respostas, exceto criação e rotação (proposta) | TRANSCRICAO | [09:22] Diego |
+| FDD-OBS-05 | `docs/FDD.md` | Proposta | Alertas e consultas de acompanhamento a partir da OBS-03 e dos logs; sem painel novo; ferramenta para a revisão técnica | TRANSCRICAO | [09:02] Marcos; [09:36] Sofia; [09:50] Larissa |
+| FDD-INT-18 | `docs/FDD.md` | Padrão Existente | Máquina de estados: `changeStatus` chama `canTransition` antes da publicação; nenhuma transição tem `PENDING` como destino | CODIGO | `src/modules/orders/order.status.ts`; `src/modules/orders/order.service.ts` |
+| FDD-DEP-07 | `docs/FDD.md` | Padrão Existente | Express 4.21.1, Zod 3.23.8 e Pino 9.5.0 reutilizados sem atualização | CODIGO | `package.json` |
+| FDD-PLAN-01 | `docs/FDD.md` | Plano | Bloco "modelagem de outbox e DLQ": 1 sprint | TRANSCRICAO | [09:46] Larissa |
+| FDD-PLAN-02 | `docs/FDD.md` | Plano | Bloco "worker e retry": 1 sprint | TRANSCRICAO | [09:46] Larissa |
+| FDD-PLAN-03 | `docs/FDD.md` | Plano | Bloco "CRUD de configuração e deliveries": meio sprint; replay e listagem da DLQ encaixados aqui (proposta) | TRANSCRICAO | [09:46] Larissa |
+| FDD-PLAN-04 | `docs/FDD.md` | Plano | Bloco "integração no order.service e testes ponta a ponta": meio sprint | TRANSCRICAO | [09:46] Larissa |
+| FDD-PLAN-05 | `docs/FDD.md` | Plano | Bloco "HMAC, schemas, validações": "mais um pouco" | TRANSCRICAO | [09:46] Larissa |
+| FDD-PLAN-06 | `docs/FDD.md` | Plano | Revisão de segurança de pelo menos 2 dias úteis no fim; total de três sprints | TRANSCRICAO | [09:46] Sofia; [09:47] Larissa |
+| FDD-PROP-01 | `docs/FDD.md` | Proposta | Bloqueio de destinos privados (SSRF) no cadastro e no envio | TRANSCRICAO | [09:37] Sofia; [09:46] Sofia |
+| FDD-PROP-02 | `docs/FDD.md` | Proposta | Rotação de emergência (`revokePrevious`) | TRANSCRICAO | [09:22] Diego |
+| FDD-PROP-03 | `docs/FDD.md` | Proposta | Recusar com 409 uma nova rotação durante a carência | TRANSCRICAO | [09:21] Sofia |
+| FDD-PROP-04 | `docs/FDD.md` | Proposta | Pausa de até 24h para cadastro inativo, depois DLQ | TRANSCRICAO | [09:21] Bruno |
+| FDD-PROP-05 | `docs/FDD.md` | Proposta | Listagem da DLQ para ADMIN | TRANSCRICAO | [09:18] Diego; [09:36] Sofia |
+| FDD-PROP-06 | `docs/FDD.md` | Proposta | Recusar `PENDING` em `statuses`, porque nunca é destino de transição | CODIGO | `src/modules/orders/order.status.ts` |
+| FDD-PROP-07 | `docs/FDD.md` | Proposta | Lease de instância única e `claimId` por reserva | TRANSCRICAO | [09:12] Diego |
+| FDD-PROP-08 | `docs/FDD.md` | Proposta | Seleção justa e uma tarefa por endpoint: um cliente lento não atrasa os outros | TRANSCRICAO | [09:04] Bruno; [09:12] Diego; [09:38] Diego |
+| FDD-PROP-09 | `docs/FDD.md` | Proposta | Recuperação de linhas presas, com teto de `reclaims` | TRANSCRICAO | [09:24] Diego |
+| FDD-PROP-10 | `docs/FDD.md` | Proposta | Resposta do cliente lida até 2KB | TRANSCRICAO | [09:34] Marcos |
+| FDD-PROP-11 | `docs/FDD.md` | Proposta | `X-Request-Id` saneado como `correlationId` | TRANSCRICAO | [09:04] Bruno |
+| FDD-PROP-12 | `docs/FDD.md` | Proposta | Redact de `secret` e `previousSecret` nos logs, prevenção inspirada no vazamento em log de um cliente | TRANSCRICAO | [09:22] Diego |
+| FDD-PROP-13 | `docs/FDD.md` | Proposta | Métricas, consultas de acompanhamento e alertas a partir de logs e SQL | TRANSCRICAO | [09:29] Bruno |
+| FDD-PROP-14 | `docs/FDD.md` | Proposta | Nomes completos dos códigos `WEBHOOK_*`, exceto `WEBHOOK_NOT_FOUND` | TRANSCRICAO | [09:28] Bruno; [09:29] Larissa |
+| FDD-FALL-01 | `docs/FDD.md` | Decisão | Cliente fora do ar: retentativas e, esgotadas, DLQ com replay por ADMIN | TRANSCRICAO | [09:15] Diego; [09:18] Diego |
+| FDD-FALL-02 | `docs/FDD.md` | Decisão | Worker parado: eventos se acumulam na outbox e saem quando ele volta | TRANSCRICAO | [09:06] Diego |
+| FDD-FALL-03 | `docs/FDD.md` | Restrição | Falha ao registrar o evento faz a mudança de status falhar (fail-closed) | TRANSCRICAO | [09:40] Bruno |
+| FDD-FALL-04 | `docs/FDD.md` | Interpretação | Cadastro inativo: pendentes pausados por até 24h e depois DLQ (proposta) | TRANSCRICAO | [09:21] Bruno |
+| FDD-PROP-15 | `docs/FDD.md` | Interpretação | Duas assinaturas durante a carência da rotação (AMB-15) | TRANSCRICAO | [09:21] Sofia |
+| FDD-PROP-16 | `docs/FDD.md` | Interpretação | Tabela `webhook_deliveries`, uma linha por tentativa (AMB-05) | TRANSCRICAO | [09:34] Marcos |
+| FDD-PROP-17 | `docs/FDD.md` | Proposta | Remoção lógica do cadastro, para manter o histórico consultável | TRANSCRICAO | [09:33] Bruno |
+| FDD-PROP-18 | `docs/FDD.md` | Proposta | Recusar o replay de evento acima de 64KB | TRANSCRICAO | [09:24] Larissa |
 | PRD-CEN-01 | `docs/PRD.md` | Requisito Funcional | Cliente assina só "enviado" e "entregue" e recebe aviso nessas mudanças | TRANSCRICAO | [09:33] Marcos |
 | PRD-CEN-02 | `docs/PRD.md` | Requisito Não Funcional | Cliente fora por 2h recebe os avisos na próxima tentativa agendada (retentativas por ~15h) | TRANSCRICAO | [09:16] Diego; [09:17] Diego |
 | PRD-CEN-03 | `docs/PRD.md` | Requisito Funcional | Troca planejada de secret com 24h para migrar | TRANSCRICAO | [09:21] Sofia |
@@ -350,5 +409,33 @@ Este tracker liga cada item registrado nos documentos do pacote à sua origem: u
 | PRD-AC-12 | `docs/PRD.md` | Requisito Não Funcional | Falha no registro do aviso impede a mudança de status | TRANSCRICAO | [09:40] Bruno |
 | PRD-AC-13 | `docs/PRD.md` | Requisito Não Funcional | Mudanças seguidas chegam em ordem no primeiro envio | TRANSCRICAO | [09:12] Diego |
 | PRD-AC-14 | `docs/PRD.md` | Restrição | Acima de 64KB não é enviado e aparece como erro no histórico | TRANSCRICAO | [09:24] Larissa |
+| PRD-PROB-01 | `docs/PRD.md` | Problema | Clientes só descobrem mudanças de status por polling, de forma lenta e cara; prioridade alta (avaliação do autor) | TRANSCRICAO | [09:00] Marcos |
+| PRD-PROB-02 | `docs/PRD.md` | Problema | Risco de a Atlas migrar para um concorrente se a entrega atrasar; prioridade alta (avaliação do autor) | TRANSCRICAO | [09:00] Marcos; [09:45] Marcos |
+| PRD-DEC-01 | `docs/PRD.md` | Decisão | Registrar o aviso junto com a mudança de status e enviar em segundo plano (ADR-001, ADR-002) | TRANSCRICAO | [09:04] Bruno; [09:06] Diego; [09:40] Bruno |
+| PRD-DEC-02 | `docs/PRD.md` | Decisão | Retentar por ~15h e depois fila de falhas, com reenvio manual (ADR-003) | TRANSCRICAO | [09:16] Diego; [09:37] Larissa |
+| PRD-DEC-03 | `docs/PRD.md` | Decisão | Secret por endereço; o cliente implementa a verificação (ADR-004) | TRANSCRICAO | [09:21] Sofia; [09:20] Sofia |
+| PRD-DEC-04 | `docs/PRD.md` | Decisão | Entrega ao menos uma vez; o cliente descarta duplicatas (ADR-005) | TRANSCRICAO | [09:25] Diego; [09:25] Sofia |
+| PRD-DEC-05 | `docs/PRD.md` | Decisão | Padrões e infraestrutura atuais, com limitações herdadas (ADR-006) | TRANSCRICAO | [09:30] Larissa |
+| PRD-DEC-06 | `docs/PRD.md` | Decisão | Aviso reflete o pedido no momento da mudança; sem arquivamento nesta fase (ADR-007) | TRANSCRICAO | [09:52] Larissa; [09:08] Diego |
+| PRD-DEP-01 | `docs/PRD.md` | Dependência | Produto: portal com "ao menos uma vez", integração via API e limitação de ordem (Marcos) | TRANSCRICAO | [09:26] Marcos; [09:40] Marcos; [09:13] Larissa |
+| PRD-DEP-02 | `docs/PRD.md` | Dependência | Segurança: revisão de HMAC e geração de secret, pelo menos 2 dias úteis antes do deploy (Sofia) | TRANSCRICAO | [09:46] Sofia; [09:49] Sofia |
+| PRD-DEP-03 | `docs/PRD.md` | Dependência | Comercial: confirmar o prazo com a Atlas e atualizar os clientes (Marcos) | TRANSCRICAO | [09:47] Marcos; [09:49] Marcos |
+| PRD-DEP-04 | `docs/PRD.md` | Dependência | Engenharia: sessão de revisão técnica antes de codar (Larissa, Bruno, Diego) | TRANSCRICAO | [09:50] Larissa |
+| PRD-DEP-05 | `docs/PRD.md` | Dependência | Cliente externo: https, resposta em até 10s, validação da assinatura e descarte de duplicatas | TRANSCRICAO | [09:23] Sofia; [09:42] Diego; [09:20] Sofia; [09:25] Diego |
+| PRD-IMP-01 | `docs/PRD.md` | Restrição | Mesma API, com o JWT do sistema, e mesmo banco de dados | TRANSCRICAO | [09:32] Marcos; [09:07] Diego |
+| PRD-IMP-02 | `docs/PRD.md` | Decisão | Único componente novo: processo de envio separado, na mesma base de código | TRANSCRICAO | [09:11] Diego; [09:30] Larissa |
+| PRD-IMP-03 | `docs/PRD.md` | Restrição | Destino: endereços https dos clientes, fora da infraestrutura da plataforma | TRANSCRICAO | [09:19] Sofia; [09:23] Sofia |
+| PRD-ARQ-01 | `docs/PRD.md` | Decisão | Aviso registrado com a mudança de status e enviado em segundo plano | TRANSCRICAO | [09:06] Diego; [09:40] Bruno |
+| PRD-ARQ-02 | `docs/PRD.md` | Decisão | Processo de envio busca pendentes em intervalos curtos, dentro de 10s | TRANSCRICAO | [09:09] Diego; [09:10] Larissa |
+| PRD-ARQ-03 | `docs/PRD.md` | Decisão | Módulo novo na API para gestão de endereços, histórico e reprocessamento | TRANSCRICAO | [09:27] Bruno |
+| PRD-ARQ-04 | `docs/PRD.md` | Decisão | Banco atual com cadastros, avisos pendentes e fila de falhas | TRANSCRICAO | [09:07] Diego; [09:17] Larissa; [09:21] Bruno |
+| PRD-ARQ-05 | `docs/PRD.md` | Decisão | Processo de envio novo e separado da API | TRANSCRICAO | [09:11] Diego |
+| PRD-ARQ-06 | `docs/PRD.md` | Decisão | O aviso nasce na mudança de status de pedido | TRANSCRICAO | [09:40] Bruno |
+| PRD-ARQ-07 | `docs/PRD.md` | Dependência | Sistemas dos clientes recebem por https e verificam a assinatura | TRANSCRICAO | [09:20] Sofia; [09:23] Sofia |
+| PRD-ARQ-08 | `docs/PRD.md` | Dependência | Portal de desenvolvedor documenta a integração | TRANSCRICAO | [09:26] Marcos; [09:40] Marcos |
+| PRD-NFR-08 | `docs/PRD.md` | Interpretação | Sem meta de disponibilidade na reunião (hipótese); parada do processo de envio atrasa sem perder avisos (inferência) | TRANSCRICAO | [09:06] Diego; [09:11] Diego |
+| PRD-NFR-09 | `docs/PRD.md` | Restrição | Gestão de endereços para qualquer autenticado, "por enquanto"; reprocessamento só por ADMIN | TRANSCRICAO | [09:37] Sofia; [09:36] Sofia |
+| PRD-NFR-10 | `docs/PRD.md` | Requisito Não Funcional | Histórico para o cliente; métricas pelos logs existentes e por consultas ao banco (proposta) | TRANSCRICAO | [09:34] Marcos; [09:29] Bruno |
+| PRD-NFR-11 | `docs/PRD.md` | Requisito Não Funcional | Registro de quem fez cada reprocessamento (auditoria) | TRANSCRICAO | [09:36] Sofia |
 | RFC-RISK-07 | `docs/RFC.md` | Risco | Cadastro inativo não gera evento; pendentes pausados por até 24h (proposta do FDD) | TRANSCRICAO | [09:21] Bruno; [09:16] Diego |
 | PRD-OOS-08 | `docs/PRD.md` | Fora de Escopo | Outros tipos de evento além de `order.status_changed` (AMB-11) | TRANSCRICAO | [09:43] Diego |

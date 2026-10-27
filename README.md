@@ -39,9 +39,12 @@ Segui a ordem sugerida no enunciado:
 | 2 | [RFC](docs/RFC.md) | 19 achados | Aprovei |
 | 3 | [FDD](docs/FDD.md) | 22, 12 e 12 achados, em três passadas | **Pedi a 3ª passada** antes de aprovar. Aceitei incluir um item de SSRF na pauta de segurança do RFC. |
 | 4 | [PRD](docs/PRD.md) | 14 achados | **Pedi ajustes**: enxugar o texto, fundir requisitos não funcionais e riscos, e deixar nas dependências só o que foi combinado na reunião |
-| — | [Tracker](docs/TRACKER.md) | Validador automático ao fim de cada fase | Linhas acrescentadas dentro dos commits de cada fase |
+| 5 | [Tracker](docs/TRACKER.md) | Validador automático ao fim de cada fase | Linhas acrescentadas dentro dos commits de cada fase |
 | 6 | Este README | Revisão de fidelidade aos registros (18 achados) | Aprovação final do README |
 | 7 | [Checklist de aceite](docs/processo/checklist-aceite.md) | Revisão cruzada entre todos os documentos: consistência geral atendida e 10 desalinhamentos corrigidos | Merge do PR |
+| 8 | Alinhamento ao formato do curso: PRD e FDD nos esqueletos do curso, ADRs no MADR do curso e RFC enxugado, porque o curso não tem modelo de RFC (IT-15) | 27 achados, 7 deles importantes, todos corrigidos | Escolhi os quatro ajustes depois de comparar a entrega com os modelos do curso |
+
+**Fase 8, depois da entrega.** O enunciado pede que PRD, RFC e FDD sigam "o formato apresentado no curso". Comparei a entrega com os modelos do curso: o esqueleto de PRD e o esqueleto de FDD das páginas do curso no Notion, e o formato MADR do plugin `adrs-management` do repositório `devfullcycle/claude-mkt-place`. O curso não traz modelo de RFC. A partir disso, reorganizei os documentos nesses formatos sem trocar os títulos exigidos pelo enunciado ([P-09](docs/processo/prompts.md#p-09-alinhamento-ao-formato-do-curso)). Tudo o que o modelo pede e a reunião não definiu, como prioridade, plano de contingência e disponibilidade, entrou marcado como avaliação do autor ou hipótese.
 
 Cada uma das fases 0 a 4 terminou num commit próprio, feito depois da minha aprovação. O tracker avançou dentro desses mesmos commits, e o README tem o seu. No meio do caminho, abri o PR do fork para acompanhar a entrega.
 
@@ -62,14 +65,14 @@ Em cada documento, o ciclo foi o mesmo:
   - *(interpretação, AMB-xx)* marca os pontos em que a reunião foi ambígua, como "5 tentativas" contra 5 intervalos de backoff.
   - **(proposta)** marca todo detalhe que a reunião não definiu, como o path de um endpoint novo, o nome de uma coluna ou o mecanismo de instância única do worker.
 - **Matriz de fronteira.** Define em que altura cada tema aparece em cada documento. O backoff, por exemplo, é "retentativas por ~15h" no PRD, um link para o ADR-003 no RFC e o algoritmo completo no FDD.
-- **IDs visíveis em todos os itens, ligados ao tracker e ao validador.** O tracker fechou com **311 linhas**:
-  - 84,2% citam a transcrição, com timestamp e falante validados;
-  - 49 apontam para arquivos reais;
-  - a cobertura de IDs é de 311/311.
+- **IDs visíveis em todos os itens, ligados ao tracker e ao validador.** O tracker fechou com **387 linhas**:
+  - 86,6% citam a transcrição, com timestamp e falante validados;
+  - 52 apontam para arquivos reais;
+  - a cobertura de IDs é de 387/387.
 
 ## Prompts customizados
 
-Os oito prompts usados estão em [`docs/processo/prompts.md`](docs/processo/prompts.md). Escolhi os três abaixo porque representam as três camadas do processo: levantar a fonte da verdade, revisar e restringir o que a IA pode afirmar.
+Os nove prompts usados estão em [`docs/processo/prompts.md`](docs/processo/prompts.md). Escolhi os três abaixo porque representam as três camadas do processo: levantar a fonte da verdade, revisar e restringir o que a IA pode afirmar.
 
 ### Extração cega da transcrição (P-02)
 
@@ -147,17 +150,18 @@ O PRD é o documento mais alto nível, e por isso o mais exposto a números "de 
 
 ## Iterações e ajustes
 
-O log completo está em [`docs/processo/iteracoes.md`](docs/processo/iteracoes.md). Ele registra 14 iterações, de IT-01 a IT-14.
+O log completo está em [`docs/processo/iteracoes.md`](docs/processo/iteracoes.md). Ele registra 15 iterações, de IT-01 a IT-15.
 
 **Números do processo:**
 
 | Medida | Valor |
 |---|---|
-| Versões principais de documento | **13**. Conto como versão uma reescrita completa que passou por revisão: inventário (2), ADRs (2), RFC (2), FDD (4) e PRD (3). |
+| Versões principais de documento | **17**. Conto como versão uma reescrita completa que passou por revisão: inventário (2), ADRs (3), RFC (3), FDD (5) e PRD (4). |
 | Achados dos revisores adversariais nos documentos | **95** |
 | Erros encontrados pela extração cega | **5 grupos** |
 | Achados da revisão de fidelidade deste README (IT-13) | **18** |
 | Desalinhamentos entre documentos na revisão cruzada final (IT-14) | **10** |
+| Achados da revisão da fase 8 (IT-15) | **27** |
 
 **Casos principais:**
 
@@ -171,6 +175,7 @@ O log completo está em [`docs/processo/iteracoes.md`](docs/processo/iteracoes.m
 | IT-11 | O PRD **inventou a meta** "3 clientes integrados em produção". Também prometia "nenhum status alterado sem aviso", o que contradiz o FDD, porque cadastro desativado não gera aviso. E tratava a carência de 24h como mitigação de vazamento, quando ela mantém a secret vazada válida. | Revisor no papel de PM | A meta virou "em produção até o fim de novembro", com "3 clientes" marcado como proposta. A garantia passou a valer só para endereço ativo. A troca planejada de secret foi separada da revogação de emergência. |
 | IT-05 | O **próprio validador** acusou um falso positivo: contava os IDs de exemplo do enunciado. Depois de corrigido, passou a aprovar fácil demais, porque não via os sub-IDs dos ADRs. | Script (validador) | A medição de cobertura e a regex foram corrigidas |
 | IT-02/12 | Ajustes de rumo que **eu** fiz nos checkpoints. Antes de começar, adotei a extração cega, a matriz de fronteira e o revisor com outro modelo. No fim, enxuguei o PRD (−18%) e deixei nas dependências só o que foi combinado na reunião. | Decisão humana | O processo e o PRD mudaram conforme essas decisões |
+| IT-15 | Ao reorganizar os documentos nos modelos do curso, a IA criou **contradições internas**. Um invariante dizia que o evento nunca está na outbox e na DLQ ao mesmo tempo, mas o replay mantém a linha marcada na DLQ. A lista "única" de propostas omitia itens marcados no corpo. O plano de contingência do PRD adiava o filtro por status, que o cadastro exige. | Revisor (Sonnet) | O invariante passou a valer por ciclo, a lista virou "principais propostas" e foi completada, a prioridade do filtro foi corrigida e os blocos novos de PRD e FDD ganharam IDs no tracker. |
 
 **O que observei.** As falhas da IA que mais pesaram não foram de escrita. Foram de três tipos:
 
@@ -193,10 +198,10 @@ A revisão por outro modelo pegou esses problemas, documento a documento. O inve
     │   ├── README.md             ← índice e convenções
     │   └── ADR-001 … ADR-007     ← uma decisão por arquivo
     ├── FDD.md                    ← como construir
-    ├── TRACKER.md                ← origem de cada item (311 linhas)
+    ├── TRACKER.md                ← origem de cada item (387 linhas)
     └── processo/
         ├── inventario.md         ← fonte da verdade usada na geração
-        ├── prompts.md            ← os 8 prompts e as variantes do revisor
+        ├── prompts.md            ← os 9 prompts e as variantes do revisor
         ├── iteracoes.md          ← o que foi corrigido em cada rodada
         ├── checklist-aceite.md   ← critérios do enunciado com evidência
         └── validar-entrega.mjs   ← checagem automática dos critérios

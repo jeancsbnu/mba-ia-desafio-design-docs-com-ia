@@ -21,6 +21,13 @@ O que pode mudar no pedido nesse intervalo, segundo o código atual:
 
 O payload definido na reunião é enxuto e não inclui os itens ([09:43] Diego, [09:44] Bruno). Todos os campos citados já estão disponíveis dentro da transação de `changeStatus`, que carrega o pedido antes de alterá-lo. O modelo `Order` de `prisma/schema.prisma` tem `orderNumber`, `customerId` e `totalCents`. `ADR-007-COD-01` O esquema completo do payload está no [FDD](../FDD.md).
 
+## Fatores de decisão
+
+- **Intervalo longo até o envio:** entre a mudança de status e a entrega podem passar de ~2s a ~15h, e mais ainda com replay da DLQ ([09:09] Diego, [09:17] Diego, [09:18] Diego).
+- **Pedido mutável:** o evento precisa refletir o estado de quando o status mudou ([09:52] Larissa), e o pedido ainda pode mudar de status ou ser removido (`delete` em `src/modules/orders/order.service.ts`).
+- **Payload enxuto:** o payload não inclui os itens, e todos os seus campos já estão disponíveis na transação de `changeStatus` ([09:43] Diego, [09:44] Bruno).
+- **Secret rotacionável:** a secret pode ser trocada antes do envio, com 24h de carência para a antiga ([09:21] Sofia).
+
 ## Decisão
 
 1. **Renderizar na inserção.** O payload JSON completo é montado **no momento da inserção na outbox**, dentro da mesma transação da mudança de status, e gravado na linha do evento ([09:52] Larissa, [09:52] Diego).
@@ -43,6 +50,22 @@ Proposta por Bruno como alternativa em [09:51].
 - Um evento `PAID → PROCESSING` retentado horas depois leria o pedido já em `SHIPPED`. O payload ficaria incoerente com o próprio par `from_status`/`to_status`.
 - Um evento `PAID → CANCELLED` em retentativa não teria o que renderizar se o pedido fosse apagado nesse intervalo, algo que `delete` permite para pedidos `CANCELLED`.
 - O mesmo `event_id` ([ADR-005](ADR-005-at-least-once-com-x-event-id.md)) poderia chegar com corpos diferentes em tentativas diferentes.
+
+## Prós e contras das opções
+
+### Snapshot na inserção (escolhida)
+
+- Pró: cada evento descreve o pedido no instante em que o status mudou ([09:52] Larissa).
+- Pró: retentativas e replay entregam bytes idênticos, e o worker não consulta `orders` no envio.
+- Contra: os dados do pedido ficam em repouso na outbox e na DLQ, sem arquivamento nesta feature ([09:08] Diego).
+- Contra: ocupa mais espaço em disco e congela o formato de cada evento já gravado.
+
+### Renderizar no envio (ADR-007-ALT-01)
+
+- Pró: a outbox guardaria só o `order_id` ([09:51] Bruno), sem duplicar dados do pedido.
+- Contra: se o pedido mudar depois, o evento deixa de refletir o estado de quando o status mudou ([09:52] Larissa).
+- Contra: uma retentativa poderia ler o pedido já em outro status, ou nem encontrá-lo se ele tiver sido apagado (argumento do autor).
+- Contra: o mesmo `event_id` poderia chegar com corpos diferentes em tentativas diferentes (argumento do autor).
 
 ## Consequências
 

@@ -27,6 +27,14 @@ A notificação tem de nascer desse ponto e precisa atender a duas exigências o
 
 Há também uma restrição do time: ele é pequeno, não quer subir infraestrutura nova e o banco disponível é o MySQL já existente ([09:07] Diego).
 
+## Fatores de decisão
+
+- **Consistência:** se o status mudou, o evento precisa existir, e se a transação deu rollback, o evento não pode existir ([09:06] Diego).
+- **Isolamento:** a mudança de status não pode depender da disponibilidade nem da velocidade do cliente ([09:04] Bruno).
+- **Transação já pesada:** o `changeStatus` já atualiza `orders`, grava `order_status_history` e mexe no estoque ([09:04] Bruno).
+- **Sem infraestrutura nova:** o time é pequeno e quer resolver com o MySQL já existente ([09:07] Larissa, [09:07] Diego).
+- **Volume da tabela:** a leitura dos pendentes precisa continuar barata com a tabela crescendo, sem gravar linhas que nenhum webhook quer ([09:07] Bruno, [09:08] Diego, [09:34] Bruno).
+
 ## Decisão
 
 1. **Padrão adotado.** É o **Transactional Outbox no MySQL existente**. Dentro da transação do `changeStatus`, a mesma transação SQL que atualiza `orders` e `order_status_history`, o evento é gravado na tabela `webhook_outbox` ([09:06] Diego).
@@ -59,6 +67,31 @@ Larissa citou essa opção em [09:07].
 Diego levantou a dúvida em [09:34]. Bruno respondeu que o filtro fica na inserção e Diego concordou.
 
 **Motivo do descarte (reunião):** filtrar na inserção economiza linhas na tabela, porque eventos que nenhum webhook quer nunca são gravados ([09:34] Bruno).
+
+## Prós e contras das opções
+
+### Outbox no MySQL com filtro na inserção (escolhida)
+
+- Pró: evento e mudança de status são confirmados ou desfeitos juntos ([09:06] Diego, [09:41] Diego).
+- Pró: o cliente deixa de afetar a mudança de status ([09:04] Bruno), sem infraestrutura nova ([09:07] Diego).
+- Contra: a transação, já "pesada" ([09:04] Bruno), passa a consultar os inscritos e gravar uma linha por inscrito.
+- Contra: a tabela cresce sem arquivamento ([09:08] Diego), e mudanças de cadastro não retroagem ([09:34] Bruno).
+
+### Disparo síncrono (ADR-001-ALT-01)
+
+- Pró: o envio não dependeria do intervalo do worker.
+- Contra: um cliente lento travaria a mudança de status de outros pedidos ([09:04] Bruno).
+- Contra: com o cliente fora do ar, restaria desfazer a mudança de status ou perder o evento ([09:04] Bruno).
+
+### Fila externa (ADR-001-ALT-02)
+
+- Contra: mais infraestrutura para operar, overengineering para um time pequeno ([09:07] Larissa, [09:07] Diego).
+- Contra: publicar fora da transação MySQL cria o problema do *dual write* (argumento do autor).
+
+### Filtro no envio (ADR-001-ALT-03)
+
+- Pró: mudar os status de interesse valeria também para eventos ainda não enviados.
+- Contra: grava eventos que nenhum webhook quer ([09:34] Bruno).
 
 ## Consequências
 

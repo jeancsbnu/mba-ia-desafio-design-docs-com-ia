@@ -31,6 +31,15 @@ O projeto já tem convenções claras e aplicadas de forma consistente ([09:27] 
 
 O time é pequeno e não quer infraestrutura nem convenções novas ([09:07] Diego; [09:29] Bruno: "Não vamos botar nada novo"). A feature precisa mexer no código de pedidos num ponto sensível, a transação de mudança de status ([09:40] Bruno).
 
+## Fatores de decisão
+
+- **Convenções consolidadas:** cada domínio já é um módulo com controller, service, repository, routes e schemas ([09:27] Bruno).
+- **Nada novo:** o time é pequeno e não quer infraestrutura nem convenções novas ([09:07] Diego, [09:29] Bruno).
+- **Erros já padronizados:** o projeto tem `AppError` com códigos em caixa alta, e o error middleware já trata `AppError`, Zod e Prisma ([09:28] Bruno, [09:29] Bruno).
+- **Ponto sensível em pedidos:** a feature precisa mexer na transação de mudança de status ([09:40] Bruno).
+- **Worker em outro processo:** o PrismaClient é por processo, e o worker roda fora da API ([09:30] Bruno).
+- **Padrão de ids:** o projeto usa UUID em tudo ([09:51] Larissa).
+
 ## Decisão
 
 O módulo de webhooks segue os padrões do projeto ([09:30] Larissa). A decisão se desdobra em sete pontos.
@@ -95,6 +104,30 @@ Diego levantou a dúvida em [09:29]. Antes disso, Bruno tinha dito em [09:11] qu
 Diego perguntou em [09:51].
 
 **Motivo do descarte (reunião):** "Tudo é uuid" no projeto ([09:51] Larissa), como mostra `prisma/schema.prisma`.
+
+## Prós e contras das opções
+
+### Reuso dos padrões existentes (escolhida)
+
+- Pró: quem conhece um módulo navega no de webhooks sem esforço, e a revisão fica mais simples.
+- Pró: os erros novos saem no formato padrão sem mexer no error middleware ([09:29] Bruno), e não há dependências novas.
+- Contra: pedidos passa a depender de webhooks, e `NotFoundError` não aceita código customizado.
+- Contra: o worker não tem error middleware, o `redact` não cobre a secret e a autorização não tem escopo por customer ([09:32] Larissa, [09:37] Sofia).
+
+### Repository injetado (ADR-006-ALT-01)
+
+- Contra: a dependência só precisa enfileirar o evento, e "Não precisa injetar repository inteiro" ([09:41] Diego).
+- Contra: obrigaria a "passar um repository do webhook pro OrderService" ([09:41] Bruno), mudando o construtor e a montagem dele em `src/app.ts` (argumento do autor).
+
+### PrismaClient compartilhado (ADR-006-ALT-02)
+
+- Contra: "PrismaClient é por processo" ([09:30] Bruno).
+- Contra: o worker é outro processo Node e precisaria de instância própria de qualquer forma ([09:30] Bruno).
+
+### Id auto-incremental (ADR-006-ALT-03)
+
+- Contra: no projeto, "Tudo é uuid" ([09:51] Larissa).
+- Contra: as tabelas novas destoariam de `prisma/schema.prisma`, onde os ids são UUID (`@db.Char(36)`).
 
 ## Consequências
 

@@ -28,6 +28,14 @@ O risco de vazamento de credencial é concreto: um cliente já vazou uma secret 
 
 **Premissa de transporte.** A URL cadastrada tem de ser **https**. Uma URL `http` é recusada com erro de validação no schema Zod ([09:23] Sofia). Sofia deixou claro que isso "nem é decisão arquitetural", mas é sobre esse canal que a assinatura opera. O detalhe fica no [FDD](../FDD.md). `ADR-004-PRE-01`
 
+## Fatores de decisão
+
+- **Autenticidade e integridade:** o cliente precisa verificar que a requisição veio da plataforma e que ninguém alterou o payload ([09:19] Sofia).
+- **Risco concreto de vazamento:** um cliente já vazou uma secret em log da própria aplicação ([09:22] Diego).
+- **Estrago limitado:** um vazamento não pode comprometer todos os clientes, porque com uma secret global "se vaza uma, vaza tudo" ([09:21] Sofia).
+- **Troca sem interrupção:** o cliente precisa de tempo para migrar os seus sistemas quando a secret muda ([09:21] Sofia).
+- **Adoção pelo cliente:** o mecanismo deve ser padrão de mercado, algo para o qual "todo cliente sério tem biblioteca" ([09:20] Sofia).
+
 ## Decisão
 
 1. **Assinatura HMAC-SHA256 sobre o corpo do request.** Cada requisição é assinada com HMAC-SHA256 calculado sobre o corpo ([09:20] Sofia, [09:22] Sofia). A assinatura vai no header **`X-Signature`**. Sofia sugeriu "um header tipo X-Signature" em [09:20], e o nome foi fixado na lista de headers de [09:44] Diego. O cliente recalcula o HMAC com a secret que tem e compara o resultado.
@@ -51,6 +59,26 @@ O risco de vazamento de credencial é concreto: um cliente já vazou uma secret 
 **Por que não foi adotada:** a reunião escolheu HMAC por ser o padrão de mercado para webhooks e por "todo cliente sério" ter biblioteca para isso ([09:20] Sofia). A assinatura assimétrica exige mais do cliente: gestão de chave pública e outro algoritmo de verificação.
 
 Ela fica registrada porque resolveria a principal negativa desta decisão: a plataforma deixaria de guardar, para cada cliente, um segredo recuperável (ver Consequências). Cabe à revisão de segurança avaliar se essa troca compensa ([09:46] Sofia).
+
+## Prós e contras das opções
+
+### HMAC-SHA256 com secret por endpoint (escolhida)
+
+- Pró: autenticidade e integridade são verificadas com uma primitiva padrão, para a qual o cliente já tem biblioteca ([09:20] Sofia).
+- Pró: um vazamento afeta só um endpoint, e a rotação normal troca a secret sem downtime ([09:21] Sofia). A revogação imediata em caso de vazamento é proposta do FDD.
+- Contra: a secret precisa ficar recuperável para assinar *(interpretação, AMB-07)*, ponto aberto da revisão de segurança ([09:46] Sofia).
+- Contra: a assinatura cobre só o corpo ([09:22] Sofia), então o `X-Timestamp` não protege contra replay *(interpretação, AMB-14)*, e a rotação acrescenta estado.
+
+### Secret global (ADR-004-ALT-01)
+
+- Contra: "se vaza uma, vaza tudo" ([09:21] Sofia).
+- Contra: um único vazamento obrigaria a uma troca coordenada com todos os clientes.
+
+### Assinatura assimétrica (ADR-004-ALT-02)
+
+- Pró: a plataforma deixaria de guardar um segredo recuperável por cliente (argumento do autor).
+- Contra: exige mais do cliente, com gestão de chave pública e outro algoritmo de verificação (argumento do autor).
+- Contra: a reunião preferiu o HMAC, padrão de mercado para o qual "todo cliente sério tem biblioteca" ([09:20] Sofia).
 
 ## Consequências
 
