@@ -13,7 +13,7 @@ Para reproduzir as checagens automáticas, rode:
 node docs/processo/validar-entrega.mjs
 ```
 
-Última execução, na branch `docs/alinhamento-formato-curso` (fase 8): **39 ok, 0 falhas, 0 pendentes**.
+Última execução, na `main` depois do merge da fase 8 (PR #3): **39 ok, 0 falhas, 0 pendentes**.
 
 ## Formato apresentado no curso (fase 8)
 
