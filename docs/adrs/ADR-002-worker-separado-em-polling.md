@@ -18,6 +18,14 @@ Com o outbox ([ADR-001](ADR-001-outbox-no-mysql.md)), os eventos ficam gravados 
 - **Ciclo de vida da API.** A API é iniciada por `src/server.ts`. Se o worker rodar dentro dela, "se a API reinicia, perde o worker" ([09:11] Diego).
 - **Ordenação.** A reunião tratou a ordenação como propriedade do desenho com worker único: processar em ordem de criação entrega os eventos de um pedido na ordem em que aconteceram ([09:12] Diego). Os clientes, por sua vez, "nunca pediram garantia de ordering global"; eles "só querem saber se cada pedido deles mudou" ([09:14] Marcos).
 
+## Fatores de decisão
+
+- **Latência:** o cliente quer a notificação em menos de 10 segundos ([09:02] Marcos).
+- **Sem notificação nativa:** o MySQL não tem NOTIFY/LISTEN como o Postgres, e uma trigger só executa SQL ([09:09] Diego).
+- **Ciclo de vida da API:** com o worker dentro da API, "se a API reinicia, perde o worker" ([09:11] Diego).
+- **Ordem por pedido basta:** com worker único, processar em ordem de criação preserva a ordem de cada pedido, e os clientes nunca pediram ordem global ([09:12] Diego, [09:14] Marcos).
+- **Mesma stack:** o worker precisa usar o mesmo banco e a mesma stack da API ([09:11] Bruno, [09:11] Diego).
+
 ## Decisão
 
 1. **Processo separado.** O worker roda num processo próprio, fora da API, com uma entry-point nova `src/worker.ts` (novo) e o script `npm run worker` ([09:11] Diego, [09:11] Larissa). Usa o mesmo banco e a mesma stack ([09:11] Bruno, [09:11] Diego). `ADR-002-DEC-01`
@@ -46,6 +54,33 @@ Bruno propôs essa opção em [09:09] para reduzir a latência.
 Diego levantou o cenário em [09:12] Diego e [09:13] Diego.
 
 **Motivo do descarte (adiamento):** com vários workers, a ordenação por pedido se perde. Escalar exigiria particionar por `order_id` ou usar lock pessimista, e Diego classificou isso como "problema do futuro, não agora" ([09:13] Diego). Por isso a escala fica registrada como questão em aberto, não como rejeição definitiva.
+
+## Prós e contras das opções
+
+### Processo separado em polling de 2s (escolhida)
+
+- Pró: atraso de até ~2s, abaixo dos 10s pedidos ([09:09] Diego, [09:10] Marcos).
+- Pró: reinícios da API não interrompem o envio ([09:11] Diego).
+- Contra: com instância única e até 10s por tentativa ([09:42] Diego), um cliente lento atrasa todos.
+- Contra: ordem só por pedido e com instância única ([09:13] Larissa), além de um ponto único de falha.
+
+### Trigger no banco (ADR-002-ALT-01)
+
+- Pró: seria mais reativa ([09:09] Bruno).
+- Contra: o MySQL não tem listener nativo, e avisar o worker exigiria improviso ([09:09] Diego).
+- Contra: o polling de 2s já atende os 10s com folga ([09:09] Diego).
+
+### Worker na API (ADR-002-ALT-02)
+
+- Pró: um processo a menos para implantar e monitorar.
+- Contra: se a API reinicia, o worker vai junto ([09:11] Diego).
+- Contra: a carga de envio ficaria no caminho das requisições da API (argumento do autor).
+
+### Vários workers (ADR-002-ALT-03)
+
+- Pró: eliminaria o ponto único de falha.
+- Contra: a ordem por pedido se perde ([09:12] Diego).
+- Contra: preservá-la exigiria partição por `order_id` ou lock pessimista, "problema do futuro" ([09:13] Diego).
 
 ## Consequências
 

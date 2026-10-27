@@ -17,11 +17,13 @@ Este diretório guarda os ADRs do Sistema de Webhooks de Notificação de Pedido
 ## Convenções
 
 - **Nome do arquivo:** `ADR-NNN-titulo-em-kebab-case.md`, numerado em sequência.
-- **Formato:** variante do MADR em português, com as seções:
+- **Formato:** variante do MADR em português, alinhada ao formato do plugin `adrs-management` usado no curso, com as seções:
   - Status
   - Contexto
+  - Fatores de decisão (o que pesou na escolha, com a fala de origem)
   - Decisão
   - Alternativas Consideradas (cada uma com o rótulo `ADR-NNN-ALT-NN` e o motivo do descarte)
+  - Prós e contras das opções (da opção escolhida e de cada alternativa)
   - Consequências (Positivas, Negativas e Trade-off)
   - Referências
 - **Rastreabilidade:** toda afirmação cita a fala de origem no formato `[hh:mm] Nome` ou o caminho do arquivo no código. As linhas correspondentes estão em [`docs/TRACKER.md`](../TRACKER.md).

@@ -219,7 +219,7 @@ try {
 
 // ---------------------------------------------------------------- Saída
 const icon = { PASS: '✔', FAIL: '✘', PENDENTE: '…' };
-for (const r of results) console.log(`${icon[r.status]} [${r.status}] ${r.area}: ${r.name}${r.detail ? ` — ${r.detail}` : ''}`);
+for (const r of results) console.log(`${icon[r.status]} [${r.status}] ${r.area}: ${r.name}${r.detail ? `: ${r.detail}` : ''}`);
 const count = (s) => results.filter((r) => r.status === s).length;
 console.log(`\n${count('PASS')} ok, ${count('FAIL')} falhas, ${count('PENDENTE')} pendentes`);
 process.exit(count('FAIL') ? 1 : 0);

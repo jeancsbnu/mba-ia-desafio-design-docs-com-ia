@@ -35,6 +35,14 @@ Os eventos que esgotam as tentativas precisam de um destino que permita investig
 - *Interpretação adotada (AMB-17):* qualquer resposta fora da faixa 2xx e qualquer erro de rede também contam como falha.
 - O timeout e o critério de sucesso são parâmetros de resiliência, detalhados no [FDD](../FDD.md).
 
+## Fatores de decisão
+
+- **Cliente offline:** o worker pode encontrar o cliente fora do ar na hora da entrega ([09:14] Larissa).
+- **Indisponibilidades de horas:** já houve cliente com duas horas de manutenção planejada ([09:16] Diego).
+- **Fim definido:** um evento não pode ficar pendurado para sempre se o cliente sumiu ([09:15] Diego).
+- **Evidência para reprocessar:** os eventos esgotados precisam de um destino que sirva para debug e reprocessamento, sem sujar a leitura da outbox ([09:18] Diego).
+- **Replay controlado:** reprocessar a fila de entrega não é tarefa de operador e exige registrar quem fez ([09:36] Sofia).
+
 ## Decisão
 
 1. **Retentativas com backoff exponencial**, em intervalos de **1 min, 5 min, 30 min, 2 h e 12 h** ([09:17] Diego).
@@ -67,6 +75,31 @@ Bruno propôs em [09:16], por ser "mais agressivo".
 Larissa pôs as duas opções em [09:17].
 
 **Motivo do descarte (reunião):** a tabela separada deixa "mais limpa a leitura da outbox principal" e serve "como evidence pra debug e reprocessamento" ([09:18] Diego). Por isso o evento esgotado sai da outbox (AMB-13).
+
+## Prós e contras das opções
+
+### Cinco retentativas com backoff e DLQ em tabela (escolhida)
+
+- Pró: cobre até ~15h de indisponibilidade, lendo "5 tentativas" como 5 retentativas *(interpretação, AMB-02)*, com folga para a manutenção de duas horas ([09:16] Diego).
+- Pró: ciclo de vida finito, e a DLQ guarda payload e motivo para investigar e reprocessar ([09:18] Diego).
+- Contra: acima de ~15h, o evento depende de replay manual, o que Marcos achou aceitável ([09:17] Marcos).
+- Contra: o cliente não é avisado das falhas, porque o e-mail ficou fora desta fase ([09:37] Larissa).
+
+### Retry indefinido (ADR-003-ALT-01)
+
+- Pró: dispensaria o replay manual depois de indisponibilidades acima de ~15h.
+- Contra: se o cliente sumiu, o evento fica pendurado para sempre ([09:15] Diego).
+
+### Apenas 3 tentativas (ADR-003-ALT-02)
+
+- Pró: "mais agressivo" ([09:16] Bruno).
+- Contra: as três retentativas se esgotam em cerca de meia hora ([09:16] Diego).
+- Contra: não cobriria a manutenção de duas horas que já aconteceu ([09:16] Diego).
+
+### "failed" na própria outbox (ADR-003-ALT-03)
+
+- Contra: deixa menos limpa a leitura da outbox principal ([09:18] Diego).
+- Contra: abre mão da tabela separada que serve "como evidence pra debug e reprocessamento" ([09:18] Diego).
 
 ## Consequências
 

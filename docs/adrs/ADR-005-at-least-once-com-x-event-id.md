@@ -23,6 +23,14 @@ Logo, a plataforma precisa assumir e comunicar uma semântica de entrega. As op�
 
 Na reunião, Bruno perguntou como o cliente reconheceria um mesmo evento recebido duas vezes ([09:25] Bruno).
 
+## Fatores de decisão
+
+- **Retentativa por timeout:** o cliente que não responde em 10s conta como falha e é retentado ([09:42] Diego).
+- **Duplicata possível:** como o worker não distingue uma resposta perdida de uma falha real, o cliente pode receber o mesmo evento duas vezes ([09:24] Diego).
+- **Reconhecer o repetido:** o cliente precisa de um meio de diferenciar um evento recebido de novo ([09:25] Bruno).
+- **Não perder eventos:** a política de retentativa foi decidida para cobrir indisponibilidades de horas ([09:15] Diego, [09:16] Diego).
+- **Complexidade:** garantir exactly-once exigiria "coordenação dos dois lados" e ficaria "muito mais complexo" ([09:25] Diego).
+
 ## Decisão
 
 1. **Semântica at-least-once.** A plataforma garante entrega **at-least-once**: o cliente pode receber o mesmo evento mais de uma vez e "tem que estar preparado" ([09:24] Diego).
@@ -46,6 +54,25 @@ Diego também afirmou que at-least-once com `event_id` "resolve 99% dos casos" e
 *Alternativa de referência, não discutida na reunião.* Está registrada para deixar explícito o outro extremo do espectro de semânticas.
 
 **Por que não se aplica:** eliminaria as duplicatas ao custo de perder o evento sempre que o cliente estivesse indisponível. Isso contradiz a política de retentativa decidida para cobrir indisponibilidades de horas ([09:15] Diego, [09:16] Diego).
+
+## Prós e contras das opções
+
+### At-least-once com `X-Event-Id` (escolhida)
+
+- Pró: o worker só retenta o que não recebeu resposta 2xx a tempo, sem coordenar nada com o cliente.
+- Pró: nenhuma falha transitória perde evento dentro da janela de retentativas, e deduplicar exige só um id único.
+- Contra: a responsabilidade passa para o cliente ([09:25] Sofia), que precisa reter os `event_id` por pelo menos ~15h ([09:17] Diego).
+- Contra: só funciona se a semântica for bem comunicada aos clientes ([09:26] Marcos).
+
+### Exactly-once (ADR-005-ALT-01)
+
+- Pró: nem perde, nem duplica eventos.
+- Contra: exigiria "coordenação dos dois lados" e "fica muito mais complexo" ([09:25] Diego).
+
+### At-most-once (ADR-005-ALT-02)
+
+- Pró: eliminaria as duplicatas (argumento do autor).
+- Contra: perderia o evento sempre que o cliente estivesse indisponível (argumento do autor), o que contradiz a retentativa decidida ([09:15] Diego, [09:16] Diego).
 
 ## Consequências
 

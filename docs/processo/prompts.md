@@ -359,3 +359,58 @@ Escreva em primeira pessoa, como o aluno no papel de maestro. Sem marketing e se
 superlativos. As decisões do usuário nos checkpoints (melhorias pedidas, 3ª
 passada do FDD, ajustes do PRD) aparecem como decisões humanas.
 ```
+
+---
+
+## P-09: Alinhamento ao formato do curso
+
+- **Fase:** 8 (pós-entrega)
+- **Ferramenta:** Claude Code, sessão principal (Opus 5.5) para PRD e FDD, e dois subagentes em paralelo para ADRs e RFC.
+- **Objetivo:** atender ao trecho do enunciado que diz que PRD, RFC e FDD devem seguir "o formato apresentado no curso".
+- **Material de referência** (lido nesta fase): os modelos do curso, ou seja, o esqueleto de PRD e o esqueleto de FDD das páginas do Notion do curso, e o formato MADR de 7 seções do plugin `adrs-management` do repositório `devfullcycle/claude-mkt-place`. O curso não traz modelo de RFC. Páginas consultadas: [PRD de Feature](https://devfullcycle.notion.site/PRD-de-Feature-2941423c03888001a8a3e4e27e9b3add), [Design e Arquitetura](https://devfullcycle.notion.site/Design-e-Arquitetura-2a01423c038880068dbff012c80c4aa2), [Engineering Guidelines](https://devfullcycle.notion.site/Engineering-Guidelines-2bb1423c0388801394a4ce5dd7fc5dd4), [Classificação geral de documentos](https://devfullcycle.notion.site/Classifica-o-geral-de-documentos-2a11423c03888054bbd6d13301d827ba) e o repositório [devfullcycle/claude-mkt-place](https://github.com/devfullcycle/claude-mkt-place/tree/main).
+
+```text
+Reestruture os documentos para seguir os modelos do curso, SEM perder o que o
+enunciado do desafio exige e SEM introduzir conteúdo novo sem fonte.
+
+PRD (esqueleto do curso):
+- cabeçalho com Versão, Data e Responsável;
+- contexto com "Onde a feature será implantada" e "Problemas priorizados" (com
+  impacto e prioridade);
+- escopo com "Incluso" e "Fora de escopo";
+- cada requisito funcional com descrição, fluxo principal, fluxos alternativos e
+  exceções, erros previstos e prioridade;
+- requisitos não funcionais agrupados por categoria (performance, disponibilidade,
+  segurança, observabilidade, confiabilidade, compatibilidade);
+- "Arquitetura e abordagem" (abordagem, componentes, integrações);
+- decisões no formato Decisão / Justificativa / Trade-off;
+- dependências classificadas por tipo;
+- riscos com probabilidade, impacto, mitigações em subitens e plano de contingência;
+- critérios de aceitação em checklist;
+- testes divididos em "tipos obrigatórios" e "estratégia de validação".
+Mantenha os títulos exigidos pelo enunciado e todos os IDs PRD-*.
+
+FDD (esqueleto do curso):
+- cabeçalho com Versão e Responsável;
+- suposições e restrições explícitas;
+- em cada contrato: Tipo, Assinatura/Rota, Método e semântica de status/headers;
+- um contrato de FUNÇÃO para publishWebhookEvent;
+- invariantes e política de fallback;
+- "Dashboards e alertas";
+- dependências com versão mínima;
+- plano de contingência em cada risco.
+Acrescente também:
+- o plano de implementação a partir dos blocos estimados em [09:46] Larissa;
+- a linha FDD-INT para a máquina de estados (order.status.ts);
+- uma seção única "Propostas além da reunião".
+
+ADRs (MADR do curso): acrescente "Fatores de decisão" e "Prós e contras das
+opções", mantendo Status, Contexto, Decisão, Alternativas Consideradas e
+Consequências.
+
+Regras:
+- Prioridade, contingência, disponibilidade e tudo o mais que a reunião não
+  definiu entra marcado como hipótese, proposta ou avaliação do autor.
+- Sem travessões "—" (regra dos prompts do curso).
+- Nenhum ID existente some sem que a linha correspondente saia do tracker.
+```
